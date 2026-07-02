@@ -1,0 +1,10 @@
+node_modules
+data
+*.sqlite
+.env
+.git
+.gitattributes
+ts3-musicbot
+README*.md
+*.bat
+*.ps1

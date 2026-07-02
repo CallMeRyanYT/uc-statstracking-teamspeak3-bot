@@ -1,0 +1,16 @@
+# Environment (secrets)
+.env
+
+# Database
+data/
+*.sqlite
+
+# Node
+node_modules/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

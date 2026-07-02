@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UC Stats — TeamSpeak 3 Activity Tracker</title>
+  <meta name="description" content="Unknown Cyberia TeamSpeak 3 activity leaderboard and stats tracker." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Tokens ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:    #0b0d14;
+      --bg-card:    #111422;
+      --bg-glass:   rgba(17, 20, 34, 0.85);
+      --border:     rgba(99, 120, 255, 0.12);
+      --border-glow:rgba(99, 120, 255, 0.35);
+      --accent:     #6378ff;
+      --accent2:    #a78bfa;
+      --green:      #34d399;
+      --yellow:     #fbbf24;
+      --red:        #f87171;
+      --text-1:     #e8eaf6;
+      --text-2:     #8b92b8;
+      --text-3:     #555c80;
+      --gold:       #f6c90e;
+      --silver:     #c0c8e8;
+      --bronze:     #d4855a;
+      --radius:     14px;
+      --shadow:     0 8px 40px rgba(0,0,0,0.55);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-1);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated background grid ──────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(99,120,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,120,255,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page { position: relative; z-index: 1; max-width: 1300px; margin: 0 auto; padding: 0 20px 60px; }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      padding: 36px 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-icon {
+      width: 46px; height: 46px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 24px rgba(99,120,255,0.4);
+      flex-shrink: 0;
+    }
+
+    .logo-text h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, var(--text-1), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-text p {
+      font-size: 0.78rem;
+      color: var(--text-3);
+      font-weight: 400;
+      margin-top: 2px;
+    }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(52, 211, 153, 0.1);
+      border: 1px solid rgba(52, 211, 153, 0.25);
+      border-radius: 99px;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--green);
+      transition: all 0.3s;
+    }
+
+    .status-pill.offline {
+      background: rgba(248, 113, 113, 0.1);
+      border-color: rgba(248, 113, 113, 0.25);
+      color: var(--red);
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 2s infinite;
+    }
+
+    .status-pill.offline .status-dot {
+      background: var(--red);
+      animation: none;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    #refresh-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    #refresh-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Stat Cards Row ─────────────────────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin: 28px 0;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: border-color 0.3s, transform 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-glow);
+      transform: translateY(-2px);
+    }
+
+    .stat-card .icon { font-size: 1.5rem; }
+    .stat-card .label { font-size: 0.75rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+    .stat-card .value { font-size: 1.6rem; font-weight: 700; color: var(--text-1); line-height: 1; }
+    .stat-card .sub { font-size: 0.75rem; color: var(--text-2); }
+
+    /* ── Main grid ──────────────────────────────────────────────────────── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+    /* ── Panel / Card ───────────────────────────────────────────────────── */
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .tab-btn.active {
+      background: rgba(99, 120, 255, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Leaderboard Table ──────────────────────────────────────────────── */
+    .leaderboard-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .leaderboard-table th {
+      padding: 12px 22px;
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .leaderboard-table tr.user-row {
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+
+    .leaderboard-table tr.user-row:hover {
+      background: rgba(99, 120, 255, 0.05);
+    }
+
+    .leaderboard-table td {
+      padding: 14px 22px;
+      border-bottom: 1px solid rgba(99, 120, 255, 0.06);
+      font-size: 0.88rem;
+      vertical-align: middle;
+    }
+
+    .leaderboard-table tr:last-child td { border-bottom: none; }
+
+    .rank-cell {
+      font-weight: 700;
+      font-size: 1rem;
+      width: 48px;
+      text-align: center;
+    }
+
+    .rank-1 { color: var(--gold); }
+    .rank-2 { color: var(--silver); }
+    .rank-3 { color: var(--bronze); }
+
+    .user-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700;
+      font-size: 0.82rem;
+      flex-shrink: 0;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .user-name { font-weight: 600; color: var(--text-1); }
+    .user-meta { font-size: 0.72rem; color: var(--text-3); margin-top: 2px; }
+
+    .time-cell {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent2);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 99px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .badge-online { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
+    .badge-afk    { background: rgba(251,191,36,0.12);  color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
+    .badge-offline{ background: rgba(139,146,184,0.1);  color: var(--text-3); border: 1px solid var(--border); }
+
+    /* ── Online Sidebar ─────────────────────────────────────────────────── */
+    .online-list { padding: 0; list-style: none; }
+
+    .online-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      border-bottom: 1px solid rgba(99, 120, 255, 0.06);
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+
+    .online-item:last-child { border-bottom: none; }
+    .online-item:hover { background: rgba(99, 120, 255, 0.05); }
+
+    .online-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse-dot 2s infinite;
+    }
+
+    .online-dot.afk { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+
+    .online-info { flex: 1; min-width: 0; }
+    .online-name { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .online-detail { font-size: 0.7rem; color: var(--text-3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .online-time { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent2); flex-shrink: 0; }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-3);
+      font-size: 0.85rem;
+    }
+    .empty-state .icon { font-size: 2rem; margin-bottom: 10px; }
+
+    /* ── User Detail Modal ──────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glow);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 560px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow), 0 0 60px rgba(99,120,255,0.15);
+      transform: scale(0.95);
+      transition: transform 0.25s;
+    }
+
+    .modal-overlay.open .modal { transform: scale(1); }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-3);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+      transition: color 0.2s;
+    }
+
+    .modal-close:hover { color: var(--text-1); }
+
+    .modal-body { padding: 22px 24px; }
+
+    .modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .modal-stat {
+      background: rgba(99, 120, 255, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .modal-stat .ms-label { font-size: 0.7rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .modal-stat .ms-val { font-size: 1.1rem; font-weight: 700; color: var(--text-1); font-family: 'JetBrains Mono', monospace; }
+
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 18px 0 10px;
+    }
+
+    /* Heatmap */
+    .heatmap {
+      display: grid;
+      grid-template-columns: repeat(24, 1fr);
+      gap: 3px;
+      margin-bottom: 6px;
+    }
+
+    .heatmap-cell {
+      height: 20px;
+      border-radius: 3px;
+      background: var(--border);
+      transition: background 0.2s;
+      position: relative;
+    }
+
+    .heatmap-labels {
+      display: grid;
+      grid-template-columns: repeat(24, 1fr);
+      gap: 3px;
+    }
+
+    .heatmap-label {
+      font-size: 0.55rem;
+      color: var(--text-3);
+      text-align: center;
+    }
+
+    .channel-bar { display: flex; flex-direction: column; gap: 6px; }
+
+    .channel-entry {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .channel-name-text { flex: 1; font-size: 0.8rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .channel-time-text { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent2); flex-shrink: 0; }
+    .channel-track { flex: 2; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .channel-fill  { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 99px; }
+
+    /* ── Loading & footer ───────────────────────────────────────────────── */
+    .loading-row td { text-align: center; padding: 40px; color: var(--text-3); font-size: 0.85rem; }
+
+    .refresh-info {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.75rem;
+      color: var(--text-3);
+    }
+
+    footer {
+      text-align: center;
+      padding: 30px 0 0;
+      font-size: 0.75rem;
+      color: var(--text-3);
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+
+    /* Tooltip */
+    [data-tip] { position: relative; }
+    [data-tip]:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e2236;
+      color: var(--text-1);
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      border: 1px solid var(--border);
+      z-index: 999;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">📡</div>
+      <div class="logo-text">
+        <h1>UC Stats Tracker</h1>
+        <p>TeamSpeak 3 Activity Monitoring</p>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="status-pill" id="bot-status">
+        <div class="status-dot"></div>
+        <span id="bot-status-text">Connecting…</span>
+      </div>
+      <button id="refresh-btn" onclick="refreshAll()">⟳ Refresh</button>
+    </div>
+  </header>
+
+  <!-- ── Server stat cards ──────────────────────────────────────────────── -->
+  <div class="stats-row" id="stats-row">
+    <div class="stat-card">
+      <div class="icon">👥</div>
+      <div class="label">Total Players</div>
+      <div class="value" id="sc-users">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">🟢</div>
+      <div class="label">Online Now</div>
+      <div class="value" id="sc-online">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">⏱</div>
+      <div class="label">Total Hours Tracked</div>
+      <div class="value" id="sc-hours">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">🎮</div>
+      <div class="label">Total Sessions</div>
+      <div class="value" id="sc-sessions">—</div>
+    </div>
+  </div>
+
+  <!-- ── Main layout ────────────────────────────────────────────────────── -->
+  <div class="main-grid">
+
+    <!-- Leaderboard -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🏆 Leaderboard</div>
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="switchTab('total', this)">All-Time</button>
+          <button class="tab-btn" onclick="switchTab('daily', this)">Today</button>
+          <button class="tab-btn" onclick="switchTab('weekly', this)">Week</button>
+          <button class="tab-btn" onclick="switchTab('monthly', this)">Month</button>
+        </div>
+      </div>
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th style="width:48px; text-align:center;">#</th>
+            <th>Player</th>
+            <th>Time</th>
+            <th>Status</th>
+            <th>Last Seen</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body">
+          <tr class="loading-row"><td colspan="5">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Right sidebar -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+
+      <!-- Online now -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🟢 Online Now</div>
+          <span style="font-size:0.75rem;color:var(--text-3)" id="online-count">0 users</span>
+        </div>
+        <ul class="online-list" id="online-list">
+          <li class="empty-state"><div class="icon">😴</div>Nobody online</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="refresh-info" id="last-refresh-text">Auto-refreshes every 30 seconds</p>
+
+  <footer>
+    UC Stats Tracker — TeamSpeak 3 Activity Bot &nbsp;|&nbsp; Data refreshes every 60s
+  </footer>
+</div>
+
+<!-- ── User Detail Modal ──────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="avatar" id="modal-avatar">?</div>
+        <div>
+          <div style="font-size:1.1rem;font-weight:700" id="modal-name">Player</div>
+          <div id="modal-badge" style="margin-top:4px"></div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <div class="modal-grid" id="modal-grid"></div>
+      <div class="section-title">Activity Heatmap (by hour)</div>
+      <div class="heatmap" id="modal-heatmap"></div>
+      <div class="heatmap-labels" id="heatmap-labels"></div>
+      <div class="section-title">Top Channels</div>
+      <div class="channel-bar" id="modal-channels"></div>
+      <div class="section-title">Recent Sessions</div>
+      <div id="modal-sessions" style="font-size:0.8rem;color:var(--text-2);line-height:1.8"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function fmtHours(h) {
+    if (!h || isNaN(h)) return '0h 0m';
+    const hrs = Math.floor(h);
+    const min = Math.round((h - hrs) * 60);
+    return `${hrs}h ${min}m`;
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return 'Never';
+    return new Date(iso).toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
+
+  function rankLabel(i) {
+    return ['🥇','🥈','🥉'][i] || `#${i+1}`;
+  }
+
+  function statusBadge(row) {
+    if (!row.is_online) return `<span class="badge badge-offline">Offline</span>`;
+    if (row.is_afk)     return `<span class="badge badge-afk">🟡 AFK</span>`;
+    return `<span class="badge badge-online">🟢 Online</span>`;
+  }
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let allUsers = [];
+  let currentTab = 'total';
+  const timeKeys = { total: 'total_time', daily: 'daily_time', weekly: 'weekly_time', monthly: 'monthly_time' };
+
+  // ── Fetch & Render ────────────────────────────────────────────────────────
+  async function fetchAll() {
+    const [lb, online, server] = await Promise.all([
+      fetch('/api/leaderboard').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/online').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/server').then(r=>r.json()).catch(()=>({})),
+    ]);
+    allUsers = lb;
+    renderLeaderboard();
+    renderOnline(online);
+    renderServerStats(server, online);
+  }
+
+  function renderServerStats(s, online) {
+    document.getElementById('sc-users').textContent   = s.users || 0;
+    document.getElementById('sc-online').textContent  = online.length || 0;
+    document.getElementById('sc-hours').textContent   = fmtHours(s.total_hours || 0);
+    document.getElementById('sc-sessions').textContent= s.total_sessions || 0;
+
+    const pill = document.getElementById('bot-status');
+    const txt  = document.getElementById('bot-status-text');
+    if (s.bot_connected) {
+      pill.classList.remove('offline');
+      txt.textContent = 'Bot Connected';
+    } else {
+      pill.classList.add('offline');
+      txt.textContent = 'Bot Offline';
+    }
+  }
+
+  function renderLeaderboard() {
+    const key = timeKeys[currentTab] || 'total_time';
+    const sorted = [...allUsers]
+      .filter(u => (u[key] || 0) > 0 || u.is_online)
+      .sort((a, b) => (b[key] || 0) - (a[key] || 0))
+      .slice(0, 20);
+
+    const tbody = document.getElementById('leaderboard-body');
+    if (!sorted.length) {
+      tbody.innerHTML = `<tr class="loading-row"><td colspan="5">No activity recorded yet!</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = sorted.map((u, i) => {
+      const rankClass = i < 3 ? ` rank-${i+1}` : '';
+      const initials = u.username.slice(0,2).toUpperCase();
+      const timeVal = fmtHours(u[key] || 0);
+      return `
+        <tr class="user-row" onclick="openModal('${u.uid}')">
+          <td class="rank-cell${rankClass}">${rankLabel(i)}</td>
+          <td>
+            <div class="user-cell">
+              <div class="avatar">${initials}</div>
+              <div>
+                <div class="user-name">${esc(u.username)}</div>
+                <div class="user-meta">Sessions: ${u.session_count || 0}</div>
+              </div>
+            </div>
+          </td>
+          <td class="time-cell">${timeVal}</td>
+          <td>${statusBadge(u)}</td>
+          <td style="font-size:0.78rem;color:var(--text-3)">${fmtDate(u.last_seen)}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  function renderOnline(users) {
+    const list = document.getElementById('online-list');
+    document.getElementById('online-count').textContent = `${users.length} user${users.length !== 1 ? 's' : ''}`;
+
+    if (!users.length) {
+      list.innerHTML = `<li class="empty-state"><div class="icon">😴</div>Nobody online</li>`;
+      return;
+    }
+
+    list.innerHTML = users.map(u => `
+      <li class="online-item" onclick="openModal('${u.uid}')">
+        <div class="online-dot${u.is_afk ? ' afk' : ''}"></div>
+        <div class="online-info">
+          <div class="online-name">${esc(u.username)}${u.is_afk ? ' [AFK]' : ''}</div>
+          <div class="online-detail">${esc(u.channel || '')}</div>
+        </div>
+        <div class="online-time">${fmtHours(u.sessionHours)}</div>
+      </li>`).join('');
+  }
+
+  // ── Tab switching ─────────────────────────────────────────────────────────
+  function switchTab(tab, btn) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderLeaderboard();
+  }
+
+  // ── User Modal ────────────────────────────────────────────────────────────
+  async function openModal(uid) {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.classList.add('open');
+
+    try {
+      const data = await fetch(`/api/user/${encodeURIComponent(uid)}`).then(r=>r.json());
+      const initials = data.username.slice(0,2).toUpperCase();
+      document.getElementById('modal-avatar').textContent = initials;
+      document.getElementById('modal-name').textContent = data.username;
+      document.getElementById('modal-badge').innerHTML = statusBadge(data);
+
+      // Stats grid
+      document.getElementById('modal-grid').innerHTML = [
+        { label: 'Total Time',    val: fmtHours(data.total_time) },
+        { label: 'Rank',          val: `#${data.rank}` },
+        { label: 'Today',         val: fmtHours(data.daily_time) },
+        { label: 'This Week',     val: fmtHours(data.weekly_time) },
+        { label: 'This Month',    val: fmtHours(data.monthly_time) },
+        { label: 'AFK Time',      val: fmtHours(data.afk_time) },
+        { label: 'Sessions',      val: data.session_count },
+        { label: 'First Seen',    val: fmtDate(data.first_seen) },
+      ].map(s => `
+        <div class="modal-stat">
+          <div class="ms-label">${s.label}</div>
+          <div class="ms-val">${s.val}</div>
+        </div>`).join('');
+
+      // Heatmap
+      const maxTick = Math.max(...(data.hourly || []).map(h=>h.t), 1);
+      const tickMap = {};
+      (data.hourly || []).forEach(h => { tickMap[h.hour_of_day] = h.t; });
+      document.getElementById('modal-heatmap').innerHTML = Array.from({length:24},(_,i) => {
+        const t = tickMap[i] || 0;
+        const intensity = Math.round((t / maxTick) * 100);
+        const bg = t > 0
+          ? `linear-gradient(135deg, rgba(99,120,255,${0.15 + intensity/100*0.85}), rgba(167,139,250,${0.1 + intensity/100*0.5}))`
+          : 'var(--border)';
+        return `<div class="heatmap-cell" data-tip="${i}:00 – ${i+1 < 10 ? '0':''}${i+1}:00 (${fmtHours(t/60)})" style="background:${bg}"></div>`;
+      }).join('');
+      document.getElementById('heatmap-labels').innerHTML = Array.from({length:24},(_,i) =>
+        `<div class="heatmap-label">${i % 6 === 0 ? i+'h' : ''}</div>`).join('');
+
+      // Top channels
+      const maxChanTime = Math.max(...(data.channels||[]).map(c=>c.total_time), 0.001);
+      document.getElementById('modal-channels').innerHTML = (data.channels||[]).length
+        ? (data.channels||[]).map(c => `
+            <div class="channel-entry">
+              <div class="channel-name-text" title="${esc(c.channel_name)}">${esc(c.channel_name)}</div>
+              <div class="channel-track"><div class="channel-fill" style="width:${Math.round(c.total_time/maxChanTime*100)}%"></div></div>
+              <div class="channel-time-text">${fmtHours(c.total_time)}</div>
+            </div>`).join('')
+        : `<div style="color:var(--text-3);font-size:0.8rem">No channel data yet</div>`;
+
+      // Recent sessions
+      document.getElementById('modal-sessions').innerHTML = (data.recentSessions||[]).length
+        ? (data.recentSessions||[]).map(s =>
+            `• ${fmtDate(s.session_start)} — ${fmtHours(s.duration_hours)} in ${esc(s.channel_name || '?')}`
+          ).join('<br>')
+        : `<span style="color:var(--text-3)">No completed sessions recorded yet.</span>`;
+
+    } catch (e) {
+      document.getElementById('modal-body').innerHTML =
+        `<div class="empty-state"><div class="icon">⚠️</div>Could not load user data.</div>`;
+    }
+  }
+
+  function closeModal(e) {
+    if (e && e.target !== document.getElementById('modal-overlay') && e.type === 'click') return;
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+
+  // Close on Escape
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  // ── Escape helper ─────────────────────────────────────────────────────────
+  function esc(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Refresh ───────────────────────────────────────────────────────────────
+  function refreshAll() {
+    const btn = document.getElementById('refresh-btn');
+    btn.textContent = '⟳ …';
+    fetchAll().finally(() => {
+      btn.textContent = '⟳ Refresh';
+      document.getElementById('last-refresh-text').textContent =
+        `Last refresh: ${new Date().toLocaleTimeString()} — Auto-refreshes every 30s`;
+    });
+  }
+
+  // Auto-refresh every 30 seconds
+  setInterval(refreshAll, 30_000);
+
+  // Initial load
+  refreshAll();
+</script>
+</body>
+</html>

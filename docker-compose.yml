@@ -1,0 +1,62 @@
+services:
+
+  # ── Stats Bot ──────────────────────────────────────────────────────────────
+  uc-stats-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uc-stats-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Ensure the bot can reach the TS3 server on the same machine
+      - TS3_HOST=${TS3_HOST:-host.docker.internal}
+      - TS3_QUERY_PORT=${TS3_QUERY_PORT:-10011}
+      - TS3_QUERY_USER=${TS3_QUERY_USER:-serveradmin}
+      - TS3_QUERY_PASS=${TS3_QUERY_PASS}
+      - TS3_SERVER_ID=${TS3_SERVER_ID:-1}
+      - TS3_BOT_NICKNAME=${TS3_BOT_NICKNAME:-UC Stats Bot}
+      - TS3_CHANNEL_NAME=${TS3_CHANNEL_NAME:-Stalking Room}
+      - TS3_CHANNEL_PASS=${TS3_CHANNEL_PASS:-1337}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - JOIN_LEAVE_WEBHOOK=${JOIN_LEAVE_WEBHOOK:-false}
+      - AFK_AWAY_THRESHOLD_MINUTES=${AFK_AWAY_THRESHOLD_MINUTES:-5}
+      - EXCLUDED_CHANNELS=${EXCLUDED_CHANNELS:-}
+      - BOT_NICKNAMES=${BOT_NICKNAMES:-UC Stats Bot,serveradmin}
+      - POLL_INTERVAL_MS=${POLL_INTERVAL_MS:-60000}
+      - WEB_PORT=${WEB_PORT:-3000}
+      - TZ=${TZ:-UTC}
+      - COMMAND_PREFIX=${COMMAND_PREFIX:-!}
+    volumes:
+      # Persist the SQLite database across container restarts
+      - stats_data:/app/data
+    ports:
+      # Web dashboard — accessible at http://localhost:3000
+      - "${WEB_PORT:-3000}:3000"
+    # Allows the container to reach services on the HOST machine
+    # (your TS3 server running on the same PC) via host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ── Cloudflare Tunnel ─────────────────────────────────────────────────────
+  # This makes the web dashboard publicly accessible without port forwarding.
+  # No Cloudflare account needed — it creates a temporary random URL.
+  # The URL is printed in the container logs on startup.
+  #
+  # To see the public URL:
+  #   docker logs uc-stats-tunnel
+  #
+  # To disable this service: comment out the entire cloudflare-tunnel block below.
+  # ─────────────────────────────────────────────────────────────────────────
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: uc-stats-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --url http://uc-stats-bot:3000
+    depends_on:
+      - uc-stats-bot
+
+volumes:
+  stats_data:
+    name: uc_stats_data
