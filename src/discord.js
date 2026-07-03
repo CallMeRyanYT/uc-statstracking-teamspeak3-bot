@@ -175,6 +175,7 @@ async function sendLeaveNotification(username) {
 }
 
 module.exports = {
+  postWebhook,
   sendHourlyReport,
   sendDailyReport,
   sendWeeklyReport,

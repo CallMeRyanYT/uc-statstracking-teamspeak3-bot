@@ -23,6 +23,7 @@ const {
 } = require("./tracker");
 const { handleMessage } = require("./commands");
 const {
+  postWebhook,
   sendHourlyReport,
   sendDailyReport,
   sendWeeklyReport,
@@ -199,37 +200,107 @@ async function connectTS3() {
 
     ts3.on("textmessage", async (event) => {
       try {
-        const text = (event.msg || "").trim();
-        const invoker = event.invoker;
-        if (!text || !invoker) return;
+        // ── Extract message text ────────────────────────────────────────────
+        // v3 uses event.msg; older versions use event.message — check both
+        const rawText = event.msg || event.message || "";
+        const text = String(rawText).trim();
+        if (!text) return;
 
-        // Ignore messages from the bot's own query client
-        const self = await ts3.whoami().catch(() => null);
-        if (self && invoker.clid === self.clid) return;
+        // ── Extract invoker info ────────────────────────────────────────────
+        // v3 nests invoker data in event.invoker; fall back to top-level keys
+        const inv = event.invoker || {};
+        const invokerClid =
+          inv.clid || inv.id || event.invokerid || event.invokerId;
+        const invokerUid =
+          inv.uniqueIdentifier ||
+          inv.uid ||
+          event.invokeruid ||
+          event.invokerUid;
+        const invokerNick =
+          inv.nickname ||
+          inv.name ||
+          event.invokername ||
+          event.invokerName ||
+          "Unknown";
 
-        const uid = invoker.uniqueIdentifier;
-        const nick = invoker.nickname || "Unknown";
-
-        const reply = await handleMessage(text, uid, nick);
-        if (!reply) return;
-
-        // targetmode: 1 = private, 2 = channel, 3 = server
-        const mode = event.targetmode;
-        if (mode === 1) {
-          // Private message — reply privately to the invoker
-          await ts3.sendTextMessage(invoker.clid, 1, reply);
-        } else {
-          // Channel or server message — reply to the same channel
-          const targetId =
-            event.targetmode === 3
-              ? 0 // server-wide: target 0 = all virtual server
-              : (await ts3.clientInfo(invoker.clid).catch(() => null))?.cid;
-          if (targetId) {
-            await ts3.sendTextMessage(targetId, 2, reply);
-          }
+        if (!invokerClid || !invokerUid) {
+          console.log(
+            "[TS3] Received message but could not identify sender:",
+            JSON.stringify(event).slice(0, 200),
+          );
+          return;
         }
+
+        // ── Ignore self-messages ────────────────────────────────────────────
+        const self = await ts3.whoami().catch(() => null);
+        if (self && invokerClid === self.clid) return;
+
+        console.log(
+          `[TS3] Command from ${invokerNick} (${invokerUid}): ${text}`,
+        );
+
+        // ── Process the command ─────────────────────────────────────────────
+        const reply = await handleMessage(text, invokerUid, invokerNick);
+        if (!reply) return; // not a command (didn't start with #)
+
+        console.log(
+          `[TS3] Reply to ${invokerNick}: ${reply.slice(0, 100)}${reply.length > 100 ? "..." : ""}`,
+        );
+
+        // ── Determine target mode ───────────────────────────────────────────
+        // targetmode: 1=private, 2=channel, 3=server
+        const mode = event.targetmode || event.target || 2;
+        let targetId = null;
+
+        if (mode === 1) {
+          // Private message — reply directly to the invoker
+          targetId = invokerClid;
+        } else if (mode === 3) {
+          // Server-wide message — broadcast to server
+          targetId = 0;
+        } else {
+          // Channel message (mode 2) — look up the invoker's current channel
+          const info = await ts3.clientInfo(invokerClid).catch(() => null);
+          targetId = info ? info.cid || info.channelId : null;
+        }
+
+        // ── Send reply to TS3 ───────────────────────────────────────────────
+        if (targetId !== null && targetId !== undefined) {
+          await ts3.sendTextMessage(targetId, mode === 1 ? 1 : 2, reply);
+          console.log(
+            `[TS3] Response sent to ${mode === 1 ? "private" : "channel"} (target ${targetId})`,
+          );
+        } else {
+          // Fallback: send privately if we can't determine the channel
+          console.warn(
+            `[TS3] Could not determine channel for ${invokerNick}, sending private reply.`,
+          );
+          await ts3.sendTextMessage(invokerClid, 1, reply);
+        }
+
+        // ── Also relay to Discord webhook ───────────────────────────────────
+        const discordMsg = [
+          `📥 **${invokerNick}** used command in TS3:`,
+          "```",
+          text,
+          "```",
+          "**Result:**",
+          "```",
+          reply,
+          "```",
+        ].join("\n");
+
+        // Truncate if too long (Discord webhook limit is 2000 chars)
+        const finalMsg =
+          discordMsg.length > 1950
+            ? discordMsg.slice(0, 1950) + "\n... (truncated)"
+            : discordMsg;
+
+        await postWebhook(finalMsg).catch((e) =>
+          console.error("[TS3] Discord relay error:", e.message),
+        );
       } catch (e) {
-        console.error("[TS3] textmessage handler error:", e.message);
+        console.error("[TS3] textmessage handler error:", e.message, e.stack);
       }
     });
 
