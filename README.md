@@ -1,6 +1,6 @@
 # UC Stats Tracking Bot — TeamSpeak 3
 
-A **fully-featured activity & stats tracking bot** for TeamSpeak 3 servers. Tracks how long every user spends online, reports leaderboards automatically to Discord every hour, and serves a live web dashboard — accessible publicly via Cloudflare Tunnel with zero port forwarding required.
+A **fully-featured activity & stats tracking bot** for TeamSpeak 3 servers. Tracks how long every user spends online server-wide, reports leaderboards automatically to Discord every hour, and serves a live web dashboard — accessible publicly via Cloudflare Tunnel with zero port forwarding required.
 
 ---
 
@@ -8,14 +8,14 @@ A **fully-featured activity & stats tracking bot** for TeamSpeak 3 servers. Trac
 
 | Feature | Details |
 |---|---|
-| **Online Time Tracking** | Tracks hours per user across all channels |
+| **Global Server Tracking** | Tracks hours per user across **all channels** automatically |
 | **Away / AFK Detection** | If a user has TS3 "away" toggled for **≥ 5 minutes**, their time is paused |
 | **Per-period Leaderboards** | All-time, today, this week, this month |
 | **Session Tracking** | Individual session start/end, duration, channel |
 | **Channel Stats** | Time spent per channel per user |
 | **Peak Hours Heatmap** | What hours each person is most active |
 | **AFK Time Log** | Tracks separately so you can see real vs AFK presence |
-| **Chat Commands** | Type commands in TS3 to query stats |
+| **Chat Commands** | Type commands in TS3 chat to query stats (prefix: `#`) |
 | **Discord Webhook** | Hourly leaderboard, daily MVP, weekly summary — automatically posted |
 | **Web Dashboard** | Dark-mode live leaderboard at `localhost:3000` |
 | **Cloudflare Tunnel** | Public URL auto-generated — no port forwarding needed |
@@ -39,7 +39,6 @@ Open **PowerShell** in the project folder and run:
 The wizard will ask you for:
 - Your TS3 server address (use `host.docker.internal` if the server is on the **same PC**)
 - Your **ServerQuery password** (see [How to find your ServerQuery password](#how-to-find-your-serverquery-password))
-- The channel name and password (`Stalking Room` / `1337` by default)
 - Your Discord webhook URL (already pre-configured)
 
 It then builds the Docker image for you.
@@ -100,27 +99,27 @@ Look inside your TS3 server data folder for a file called `serveradmin.password`
 
 ## Chat Commands
 
-Type these in **any TS3 channel** (the bot listens server-wide). All commands start with `!`.
+Type these in **any TS3 channel** (the bot listens server-wide). All commands start with `#`.
 
 | Command | Description |
 |---|---|
-| `!help` | Show all available commands |
-| `!stats` | Your full stats card (total time, rank, AFK time, sessions…) |
-| `!stats [name]` | Stats for another user (partial name match works) |
-| `!rank` | Your current leaderboard rank |
-| `!rank [name]` | Another user's rank |
-| `!top` | All-time top 10 leaderboard |
-| `!today` | Today's top 10 |
-| `!week` | This week's top 10 |
-| `!month` | This month's top 10 |
-| `!online` | Who's currently online + their current session time |
-| `!session` | Your current session duration |
-| `!peak` | Your most active hours of the day |
-| `!channels` | Your top 5 channels by time |
-| `!history` | Your last 5 completed sessions |
-| `!afk` | Your total AFK time + percentage |
-| `!afk [name]` | Another user's AFK time |
-| `!server` | Server-wide stats (total users, hours, sessions) |
+| `#help` | Show all available commands |
+| `#stats` | Your full stats card (total time, rank, AFK time, sessions…) |
+| `#stats [name]` | Stats for another user (partial name match works) |
+| `#rank` | Your current leaderboard rank |
+| `#rank [name]` | Another user's rank |
+| `#top` | All-time top 10 leaderboard |
+| `#today` | Today's top 10 |
+| `#week` | This week's top 10 |
+| `#month` | This month's top 10 |
+| `#online` | Who's currently online + their current session time |
+| `#session` | Your current session duration |
+| `#peak` | Your most active hours of the day |
+| `#channels` | Your top 5 channels by time |
+| `#history` | Your last 5 completed sessions |
+| `#afk` | Your total AFK time + percentage |
+| `#afk [name]` | Another user's AFK time |
+| `#server` | Server-wide stats (total users, hours, sessions) |
 
 ---
 
@@ -201,17 +200,15 @@ The 5-minute threshold matches the server rule: if you toggle away and stay away
 | `TS3_QUERY_PASS` | *(required)* | ServerQuery password |
 | `TS3_SERVER_ID` | `1` | Virtual server ID |
 | `TS3_BOT_NICKNAME` | `UC Stats Bot` | Bot's display name in server tools |
-| `TS3_CHANNEL_NAME` | `Stalking Room` | Channel the bot joins for commands |
-| `TS3_CHANNEL_PASS` | `1337` | Password for that channel |
 | `DISCORD_WEBHOOK_URL` | *(pre-set)* | Discord webhook for leaderboard posts |
 | `JOIN_LEAVE_WEBHOOK` | `false` | Post join/leave events to Discord |
 | `AFK_AWAY_THRESHOLD_MINUTES` | `5` | Minutes before away is treated as AFK |
-| `EXCLUDED_CHANNELS` | *(blank)* | Comma-separated channel IDs to skip |
+| `EXCLUDED_CHANNELS` | *(blank)* | Comma-separated channel IDs to skip tracking |
 | `BOT_NICKNAMES` | `UC Stats Bot,serveradmin` | Nicknames to never track |
 | `POLL_INTERVAL_MS` | `60000` | How often to check online clients (ms) |
 | `WEB_PORT` | `3000` | Web dashboard port |
 | `TZ` | `UTC` | Timezone for cron labels |
-| `COMMAND_PREFIX` | `!` | Prefix for chat commands |
+| `COMMAND_PREFIX` | `#` | Prefix for chat commands |
 
 ---
 
@@ -325,7 +322,7 @@ uc-statstracking-teamspeak3-bot/
 │   ├── index.js       # Main entry — TS3 connection, polling, cron, express
 │   ├── database.js    # SQLite schema and promisified helpers
 │   ├── tracker.js     # Core tracking logic, AFK detection, session management
-│   ├── commands.js    # !command handlers for TS3 chat
+│   ├── commands.js    # #command handlers for TS3 chat
 │   └── discord.js     # Discord webhook report functions
 ├── web/
 │   └── index.html     # Web dashboard (self-contained, dark mode)

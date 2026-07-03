@@ -36,8 +36,6 @@ const TS3_QUERY_PORT = parseInt(process.env.TS3_QUERY_PORT) || 10011;
 const TS3_QUERY_USER = process.env.TS3_QUERY_USER || "serveradmin";
 const TS3_QUERY_PASS = process.env.TS3_QUERY_PASS || "";
 const TS3_BOT_NICK = process.env.TS3_BOT_NICKNAME || "UC Stats Bot";
-const TS3_CHANNEL = process.env.TS3_CHANNEL_NAME || "Stalking Room";
-const TS3_CHAN_PASS = process.env.TS3_CHANNEL_PASS || "1337";
 const POLL_MS = parseInt(process.env.POLL_INTERVAL_MS) || 60_000;
 const WEB_PORT = parseInt(process.env.WEB_PORT) || 3000;
 
@@ -188,11 +186,8 @@ async function connectTS3() {
     isConnected = true;
     console.log("[TS3] Connected and authenticated.");
 
-    // NOTE: ServerQuery clients (type=0) cannot join voice channels.
-    // We use clientList() to monitor all channels — no need to "move" the bot.
-    console.log(
-      `[TS3] Monitoring channel: "${TS3_CHANNEL}" (pass: ${TS3_CHAN_PASS})`,
-    );
+    // Monitoring is global — all voice clients across the entire server are tracked.
+    console.log("[TS3] Monitoring all channels (global tracking).");
 
     // Register for text message events using v3 event names
     // textserver  = server-wide chat messages

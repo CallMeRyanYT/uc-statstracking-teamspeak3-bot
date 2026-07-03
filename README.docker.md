@@ -58,7 +58,6 @@ The `setup.ps1` wizard automates all configuration and building.
 The wizard will:
 - ✅ Check Docker is running
 - ✅ Ask for your TS3 ServerQuery credentials
-- ✅ Ask for your channel name/password
 - ✅ Build the Docker image
 
 ---
@@ -95,15 +94,15 @@ docker logs -f uc-stats-bot
 
 A healthy startup looks like:
 ```
-═══════════════════════════════════════════════════
+===================================================
    UC Stats Tracking Bot for TeamSpeak 3
-   Connecting to: host.docker.internal:10011
-   Web Dashboard: http://localhost:3000
-═══════════════════════════════════════════════════
+   Connecting to : host.docker.internal:10011
+   Web Dashboard : http://localhost:3000
+===================================================
 [Web] Dashboard running at http://localhost:3000
 [TS3] Connecting to host.docker.internal:10011 ...
-[TS3] Connected ✓
-[TS3] Bot joined channel: Stalking Room
+[TS3] Connected and authenticated.
+[TS3] Monitoring all channels (global tracking).
 [Tracker] Polling every 60s
 ```
 

@@ -8,7 +8,7 @@
 const db = require("./database");
 const { getActiveSessions } = require("./tracker");
 
-const PREFIX = process.env.COMMAND_PREFIX || "!";
+const PREFIX = process.env.COMMAND_PREFIX || "#";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Formatting helpers
@@ -24,8 +24,11 @@ function fmtDate(iso) {
   if (!iso) return "Never";
   const d = new Date(iso);
   return d.toLocaleDateString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -69,27 +72,30 @@ async function cmdStats(args, senderUid, senderNick) {
     const name = args.join(" ");
     user = await db.getAsync(
       "SELECT * FROM users WHERE username LIKE ? ORDER BY total_time DESC LIMIT 1",
-      [`%${name}%`]
+      [`%${name}%`],
     );
     if (!user) return `❌ No user found matching "${name}".`;
   } else {
     user = await db.getAsync("SELECT * FROM users WHERE uid = ?", [senderUid]);
-    if (!user) return `❌ No stats found for you yet — join a channel and wait a minute!`;
+    if (!user)
+      return `❌ No stats found for you yet — join a channel and wait a minute!`;
   }
 
   const rank = await db.getAsync(
     "SELECT COUNT(*) AS r FROM users WHERE total_time > ?",
-    [user.total_time]
+    [user.total_time],
   );
   const position = (rank?.r ?? 0) + 1;
 
   const sessions = await db.getAsync(
     "SELECT AVG(duration_hours) AS avg, MAX(duration_hours) AS max FROM sessions WHERE uid = ? AND session_end IS NOT NULL",
-    [user.uid]
+    [user.uid],
   );
 
   const status = user.is_online
-    ? user.is_afk ? "🟡 Online (AFK)" : "🟢 Online"
+    ? user.is_afk
+      ? "🟡 Online (AFK)"
+      : "🟢 Online"
     : "🔴 Offline";
 
   return [
@@ -109,7 +115,9 @@ async function cmdStats(args, senderUid, senderNick) {
     `  First Seen    : ${fmtDate(user.first_seen)}`,
     `  Last Seen     : ${fmtDate(user.last_seen)}`,
     user.current_channel ? `  Current Chan  : ${user.current_channel}` : "",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,22 +131,26 @@ async function cmdRank(args, senderUid) {
     const name = args.join(" ");
     const u = await db.getAsync(
       "SELECT uid, username, total_time FROM users WHERE username LIKE ? ORDER BY total_time DESC LIMIT 1",
-      [`%${name}%`]
+      [`%${name}%`],
     );
     if (!u) return `❌ No user found matching "${name}".`;
     uid = u.uid;
     username = u.username;
   } else {
-    const u = await db.getAsync("SELECT username FROM users WHERE uid = ?", [uid]);
+    const u = await db.getAsync("SELECT username FROM users WHERE uid = ?", [
+      uid,
+    ]);
     username = u?.username || "You";
   }
 
-  const user = await db.getAsync("SELECT total_time FROM users WHERE uid = ?", [uid]);
+  const user = await db.getAsync("SELECT total_time FROM users WHERE uid = ?", [
+    uid,
+  ]);
   if (!user) return `❌ No stats yet.`;
 
   const rank = await db.getAsync(
     "SELECT COUNT(*) AS r FROM users WHERE total_time > ?",
-    [user.total_time]
+    [user.total_time],
   );
   const total = await db.getAsync("SELECT COUNT(*) AS c FROM users");
   const position = (rank?.r ?? 0) + 1;
@@ -152,9 +164,10 @@ async function cmdRank(args, senderUid) {
 async function buildLeaderboard(title, col, limit = 10) {
   const rows = await db.allAsync(
     `SELECT username, ${col} as t FROM users WHERE ${col} > 0 ORDER BY ${col} DESC LIMIT ?`,
-    [limit]
+    [limit],
   );
-  if (!rows || rows.length === 0) return `📊 ${title}\n\nNo activity recorded yet!`;
+  if (!rows || rows.length === 0)
+    return `📊 ${title}\n\nNo activity recorded yet!`;
 
   const lines = [`📊 [b]${title}[/b]`, "─────────────────────────────"];
   rows.forEach((u, i) => {
@@ -195,10 +208,15 @@ async function cmdOnline() {
   let i = 1;
   for (const [uid, sess] of sessions) {
     const sessionHours = (now - sess.start.getTime()) / 3_600_000;
-    const row = await db.getAsync("SELECT username, is_afk FROM users WHERE uid = ?", [uid]);
+    const row = await db.getAsync(
+      "SELECT username, is_afk FROM users WHERE uid = ?",
+      [uid],
+    );
     const nick = row?.username || uid;
     const afkTag = row?.is_afk ? " 🟡[AFK]" : "";
-    lines.push(`${i++}. [b]${nick}[/b]${afkTag} — session: ${fmtHours(sessionHours)} — in: ${sess.channelName}`);
+    lines.push(
+      `${i++}. [b]${nick}[/b]${afkTag} — session: ${fmtHours(sessionHours)} — in: ${sess.channelName}`,
+    );
   }
   return lines.join("\n");
 }
@@ -209,7 +227,8 @@ async function cmdOnline() {
 async function cmdSession(args, senderUid, senderNick) {
   const sessions = getActiveSessions();
   const sess = sessions.get(senderUid);
-  if (!sess) return `⏸ You don't have an active session right now, ${senderNick}.`;
+  if (!sess)
+    return `⏸ You don't have an active session right now, ${senderNick}.`;
   const hours = (Date.now() - sess.start.getTime()) / 3_600_000;
   return `⏱ [b]${senderNick}[/b] — Current session: [b]${fmtHours(hours)}[/b] in [b]${sess.channelName}[/b].`;
 }
@@ -223,9 +242,10 @@ async function cmdPeak(args, senderUid) {
     `SELECT hour_of_day, SUM(ticks) AS t
        FROM hourly_activity WHERE uid = ?
       GROUP BY hour_of_day ORDER BY t DESC LIMIT 5`,
-    [uid]
+    [uid],
   );
-  if (!rows || rows.length === 0) return "📈 Not enough data for peak hours yet.";
+  if (!rows || rows.length === 0)
+    return "📈 Not enough data for peak hours yet.";
 
   const lines = ["📈 [b]Your Peak Hours[/b]", "──────────────────────"];
   rows.forEach((r, i) => {
@@ -244,13 +264,15 @@ async function cmdChannels(args, senderUid) {
     `SELECT channel_name, total_time, visit_count
        FROM channel_time WHERE uid = ?
       ORDER BY total_time DESC LIMIT 5`,
-    [senderUid]
+    [senderUid],
   );
   if (!rows || rows.length === 0) return "📡 No channel data yet.";
 
   const lines = ["📡 [b]Your Top Channels[/b]", "────────────────────────"];
   rows.forEach((r, i) => {
-    lines.push(`${i + 1}. [b]${r.channel_name}[/b] — ${fmtHours(r.total_time)} (${r.visit_count} visits)`);
+    lines.push(
+      `${i + 1}. [b]${r.channel_name}[/b] — ${fmtHours(r.total_time)} (${r.visit_count} visits)`,
+    );
   });
   return lines.join("\n");
 }
@@ -263,14 +285,20 @@ async function cmdHistory(args, senderUid) {
     `SELECT session_start, session_end, duration_hours, channel_name
        FROM sessions WHERE uid = ? AND session_end IS NOT NULL
       ORDER BY session_start DESC LIMIT 5`,
-    [senderUid]
+    [senderUid],
   );
-  if (!rows || rows.length === 0) return "📜 No completed sessions recorded yet.";
+  if (!rows || rows.length === 0)
+    return "📜 No completed sessions recorded yet.";
 
-  const lines = ["📜 [b]Your Last 5 Sessions[/b]", "──────────────────────────────"];
+  const lines = [
+    "📜 [b]Your Last 5 Sessions[/b]",
+    "──────────────────────────────",
+  ];
   rows.forEach((r, i) => {
     const start = fmtDate(r.session_start);
-    lines.push(`${i + 1}. ${start} — ${fmtHours(r.duration_hours)} in [b]${r.channel_name || "?"}[/b]`);
+    lines.push(
+      `${i + 1}. ${start} — ${fmtHours(r.duration_hours)} in [b]${r.channel_name || "?"}[/b]`,
+    );
   });
   return lines.join("\n");
 }
@@ -284,13 +312,13 @@ async function cmdAfk(args, senderUid) {
     const name = args.join(" ");
     user = await db.getAsync(
       "SELECT username, afk_time, total_time FROM users WHERE username LIKE ? ORDER BY total_time DESC LIMIT 1",
-      [`%${name}%`]
+      [`%${name}%`],
     );
     if (!user) return `❌ No user found matching "${name}".`;
   } else {
     user = await db.getAsync(
       "SELECT username, afk_time, total_time FROM users WHERE uid = ?",
-      [senderUid]
+      [senderUid],
     );
     if (!user) return "❌ No stats for you yet.";
   }
@@ -312,10 +340,10 @@ async function cmdServer() {
             SUM(total_time) AS total,
             SUM(session_count) AS sessions,
             MAX(total_time) AS top_time
-     FROM users`
+     FROM users`,
   );
   const topUser = await db.getAsync(
-    "SELECT username, total_time FROM users ORDER BY total_time DESC LIMIT 1"
+    "SELECT username, total_time FROM users ORDER BY total_time DESC LIMIT 1",
   );
   const online = getActiveSessions().size;
 
@@ -342,22 +370,37 @@ async function handleMessage(rawText, senderUid, senderNick) {
 
   try {
     switch (cmd) {
-      case "help":      return await cmdHelp();
-      case "stats":     return await cmdStats(args, senderUid, senderNick);
-      case "rank":      return await cmdRank(args, senderUid);
+      case "help":
+        return await cmdHelp();
+      case "stats":
+        return await cmdStats(args, senderUid, senderNick);
+      case "rank":
+        return await cmdRank(args, senderUid);
       case "top":
-      case "leaderboard": return await cmdTop();
-      case "today":     return await cmdToday();
-      case "week":      return await cmdWeek();
-      case "month":     return await cmdMonth();
-      case "online":    return await cmdOnline();
-      case "session":   return await cmdSession(args, senderUid, senderNick);
-      case "peak":      return await cmdPeak(args, senderUid);
-      case "channels":  return await cmdChannels(args, senderUid);
-      case "history":   return await cmdHistory(args, senderUid);
-      case "afk":       return await cmdAfk(args, senderUid);
-      case "server":    return await cmdServer();
-      default:          return null; // Unknown command — stay silent
+      case "leaderboard":
+        return await cmdTop();
+      case "today":
+        return await cmdToday();
+      case "week":
+        return await cmdWeek();
+      case "month":
+        return await cmdMonth();
+      case "online":
+        return await cmdOnline();
+      case "session":
+        return await cmdSession(args, senderUid, senderNick);
+      case "peak":
+        return await cmdPeak(args, senderUid);
+      case "channels":
+        return await cmdChannels(args, senderUid);
+      case "history":
+        return await cmdHistory(args, senderUid);
+      case "afk":
+        return await cmdAfk(args, senderUid);
+      case "server":
+        return await cmdServer();
+      default:
+        return null; // Unknown command — stay silent
     }
   } catch (err) {
     console.error(`[Commands] Error in !${cmd}:`, err);

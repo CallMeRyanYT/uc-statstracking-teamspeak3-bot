@@ -14,7 +14,7 @@ Write-Host "==================================================" -ForegroundColor
 # ------------------------------------------------------------------------------
 # 1. Check Docker
 # ------------------------------------------------------------------------------
-Write-Host "" 
+Write-Host ""
 Write-Host "[1/4] Checking Docker..." -ForegroundColor Yellow
 
 $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
@@ -167,8 +167,6 @@ if ($runWizard) {
     $quser     = Read-Val "ServerQuery username"         (Get-EnvVal $lines "TS3_QUERY_USER" "serveradmin")
     $qpass     = Read-Secret "ServerQuery password"      (Get-EnvVal $lines "TS3_QUERY_PASS" "")
     $botnick   = Read-Val "Bot display name"             (Get-EnvVal $lines "TS3_BOT_NICKNAME" "UC Stats Bot")
-    $channel   = Read-Val "Channel to join"              (Get-EnvVal $lines "TS3_CHANNEL_NAME" "Stalking Room")
-    $chanpass  = Read-Secret "Channel password"          (Get-EnvVal $lines "TS3_CHANNEL_PASS" "1337")
 
     Write-Host ""
     Write-Host "--- Discord Webhook ---" -ForegroundColor Cyan
@@ -186,8 +184,6 @@ if ($runWizard) {
     $lines = Set-EnvVal $lines "TS3_QUERY_USER"              $quser
     $lines = Set-EnvVal $lines "TS3_QUERY_PASS"              $qpass
     $lines = Set-EnvVal $lines "TS3_BOT_NICKNAME"            $botnick
-    $lines = Set-EnvVal $lines "TS3_CHANNEL_NAME"            $channel
-    $lines = Set-EnvVal $lines "TS3_CHANNEL_PASS"            $chanpass
     $lines = Set-EnvVal $lines "DISCORD_WEBHOOK_URL"         $webhook
     $lines = Set-EnvVal $lines "JOIN_LEAVE_WEBHOOK"          $jlwh
     $lines = Set-EnvVal $lines "AFK_AWAY_THRESHOLD_MINUTES"  $afkMin

@@ -1,5 +1,4 @@
 services:
-
   # ── Stats Bot ──────────────────────────────────────────────────────────────
   uc-stats-bot:
     build:
@@ -17,8 +16,6 @@ services:
       - TS3_QUERY_PASS=${TS3_QUERY_PASS}
       - TS3_SERVER_ID=${TS3_SERVER_ID:-1}
       - TS3_BOT_NICKNAME=${TS3_BOT_NICKNAME:-UC Stats Bot}
-      - TS3_CHANNEL_NAME=${TS3_CHANNEL_NAME:-Stalking Room}
-      - TS3_CHANNEL_PASS=${TS3_CHANNEL_PASS:-1337}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - JOIN_LEAVE_WEBHOOK=${JOIN_LEAVE_WEBHOOK:-false}
       - AFK_AWAY_THRESHOLD_MINUTES=${AFK_AWAY_THRESHOLD_MINUTES:-5}
@@ -27,7 +24,7 @@ services:
       - POLL_INTERVAL_MS=${POLL_INTERVAL_MS:-60000}
       - WEB_PORT=${WEB_PORT:-3000}
       - TZ=${TZ:-UTC}
-      - COMMAND_PREFIX=${COMMAND_PREFIX:-!}
+      - COMMAND_PREFIX=${COMMAND_PREFIX:-#}
     volumes:
       # Persist the SQLite database across container restarts
       - stats_data:/app/data
