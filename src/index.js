@@ -176,12 +176,12 @@ async function connectTS3() {
     ts3 = await TeamSpeak.connect({
       host: TS3_HOST,
       queryport: TS3_QUERY_PORT,
-      serverport: 9987, // selects the virtual server automatically
+      serverport: 9987,
       username: TS3_QUERY_USER,
       password: TS3_QUERY_PASS,
       nickname: TS3_BOT_NICK,
-      keepAlive: true,
-      keepAliveTimeout: 60,
+      protocol: "raw",
+      keepAlive: false, // temp disable to test if keepalive blocks events
     });
 
     isConnected = true;
@@ -207,11 +207,30 @@ async function connectTS3() {
       }
     }
 
+    // ── Explicit server selection ─────────────────────────────────────────
+    // The connect() call should select the server automatically, but let's
+    // make absolutely sure we're on the right virtual server before registering.
+    const sid = parseInt(process.env.TS3_SERVER_ID) || 1;
+    try {
+      await ts3.useBySid(sid);
+      console.log(`[TS3] Selected virtual server ID ${sid}.`);
+    } catch (e) {
+      console.warn(
+        `[TS3] useBySid(${sid}) failed, trying useByPort(9987):`,
+        e.message,
+      );
+      await ts3.useByPort(9987);
+      console.log("[TS3] Selected virtual server by port 9987.");
+    }
+
     // ── STEP 1: Register for server events ─────────────────────────────────
     console.log("[TS3] Registering for server events...");
     try {
-      await ts3.registerEvent("server");
-      console.log("[TS3] Server events registered successfully.");
+      const regRes = await ts3.registerEvent("server");
+      console.log(
+        "[TS3] registerEvent returned:",
+        JSON.stringify(regRes).slice(0, 300),
+      );
     } catch (e) {
       console.error("[TS3] Failed to register events:", e.message);
     }
