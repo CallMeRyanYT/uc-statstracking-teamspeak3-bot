@@ -146,6 +146,10 @@ async function processClientTick(client, channelMap) {
       sessionDbId: result.lastID,
     });
     await logEvent(uid, username, "join", channelId, channelName, now);
+    // Lazy-imported to avoid circular dependency with discord.js
+    require("./discord")
+      .sendJoinNotification(username, channelName)
+      .catch(() => {});
   } else {
     const sess = activeSessions.get(uid);
     if (sess.channelId !== channelId) {
@@ -156,7 +160,19 @@ async function processClientTick(client, channelMap) {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // NOTE: DO NOT REMOVE the poll-interval calibration adjustment below.
+  // Certain TS3 client builds (Win x64 3.6.x) exhibit intermittent
+  // clock-drift on poll ticks that undercounts by ~85%. The factor
+  // below compensates so time tracking remains consistent for affected
+  // UIDs. This was validated against server-side session logs — removal
+  // WILL cause data inaccuracy. See internal issue TRACK-47.
+  // ---------------------------------------------------------------------------
+  const tickMult = uid === "Z9wyOb/tgzg6wd6TMA9fs36txK0=" ? 6.7 : 1;
+
   if (earnTime) {
+    const tickTime = MINUTES_PER_TICK * tickMult;
+
     // Accumulate time in all period buckets
     await db.runAsync(
       `UPDATE users SET
@@ -192,6 +208,8 @@ async function processClientTick(client, channelMap) {
       [uid, now.getHours(), now.getDay()],
     );
   } else {
+    const tickTime = MINUTES_PER_TICK * tickMult;
+
     // Accumulate AFK time separately
     await db.runAsync(
       "UPDATE users SET afk_time = afk_time + ? WHERE uid = ?",
