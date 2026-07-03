@@ -7,7 +7,7 @@
 const axios = require("axios");
 const db = require("./database");
 const { getActiveSessions } = require("./tracker");
-const { fmtHours, rankEmoji } = require("./commands");
+const { fmtHours } = require("./commands");
 
 const WEBHOOK_URL =
   process.env.DISCORD_WEBHOOK_URL ||
@@ -22,7 +22,10 @@ async function postWebhook(content) {
     await axios.post(WEBHOOK_URL, { content }, { timeout: 10_000 });
     console.log(`[Discord] Webhook sent (${content.length} chars).`);
   } catch (err) {
-    console.error("[Discord] Webhook error:", err.response?.data || err.message);
+    console.error(
+      "[Discord] Webhook error:",
+      err.response?.data || err.message,
+    );
   }
 }
 
@@ -31,14 +34,16 @@ async function postWebhook(content) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function sendHourlyReport() {
   const rows = await db.allAsync(
-    "SELECT username, total_time FROM users WHERE total_time > 0 ORDER BY total_time DESC LIMIT 10"
+    "SELECT username, total_time FROM users WHERE total_time > 0 ORDER BY total_time DESC LIMIT 10",
   );
 
   const online = getActiveSessions().size;
   const now = new Date().toLocaleString("en-GB", {
     timeZone: process.env.TZ || "UTC",
-    hour: "2-digit", minute: "2-digit",
-    day: "2-digit", month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "short",
   });
 
   const lines = [
@@ -54,7 +59,9 @@ async function sendHourlyReport() {
   } else {
     rows.forEach((u, i) => {
       const medal = ["🥇", "🥈", "🥉"][i] || `${String(i + 1).padStart(2)}.`;
-      lines.push(`${medal}  ${u.username.padEnd(20)} ${fmtHours(u.total_time)}`);
+      lines.push(
+        `${medal}  ${u.username.padEnd(20)} ${fmtHours(u.total_time)}`,
+      );
     });
   }
 
@@ -67,11 +74,13 @@ async function sendHourlyReport() {
 // ─────────────────────────────────────────────────────────────────────────────
 async function sendDailyReport() {
   const rows = await db.allAsync(
-    "SELECT username, daily_time, total_time FROM users WHERE daily_time > 0 ORDER BY daily_time DESC LIMIT 10"
+    "SELECT username, daily_time, total_time FROM users WHERE daily_time > 0 ORDER BY daily_time DESC LIMIT 10",
   );
 
   const today = new Date().toLocaleDateString("en-GB", {
-    day: "2-digit", month: "long", year: "numeric",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
   });
 
   const lines = [
@@ -86,14 +95,18 @@ async function sendDailyReport() {
   } else {
     rows.forEach((u, i) => {
       const medal = ["🥇", "🥈", "🥉"][i] || `${String(i + 1).padStart(2)}.`;
-      lines.push(`${medal}  ${u.username.padEnd(20)} ${fmtHours(u.daily_time).padEnd(10)}  (all-time: ${fmtHours(u.total_time)})`);
+      lines.push(
+        `${medal}  ${u.username.padEnd(20)} ${fmtHours(u.daily_time).padEnd(10)}  (all-time: ${fmtHours(u.total_time)})`,
+      );
     });
   }
 
   lines.push("```");
 
   if (rows[0]) {
-    lines.push(`🌟 **Most active today:** ${rows[0].username} with **${fmtHours(rows[0].daily_time)}** online!`);
+    lines.push(
+      `🌟 **Most active today:** ${rows[0].username} with **${fmtHours(rows[0].daily_time)}** online!`,
+    );
   }
 
   await postWebhook(lines.join("\n"));
@@ -104,10 +117,10 @@ async function sendDailyReport() {
 // ─────────────────────────────────────────────────────────────────────────────
 async function sendWeeklyReport() {
   const weeklyRows = await db.allAsync(
-    "SELECT username, weekly_time FROM users WHERE weekly_time > 0 ORDER BY weekly_time DESC LIMIT 10"
+    "SELECT username, weekly_time FROM users WHERE weekly_time > 0 ORDER BY weekly_time DESC LIMIT 10",
   );
   const allTimeRows = await db.allAsync(
-    "SELECT username, total_time FROM users WHERE total_time > 0 ORDER BY total_time DESC LIMIT 10"
+    "SELECT username, total_time FROM users WHERE total_time > 0 ORDER BY total_time DESC LIMIT 10",
   );
 
   const lines = [
@@ -122,7 +135,9 @@ async function sendWeeklyReport() {
   } else {
     weeklyRows.forEach((u, i) => {
       const medal = ["🥇", "🥈", "🥉"][i] || `${String(i + 1).padStart(2)}.`;
-      lines.push(`${medal}  ${u.username.padEnd(20)} ${fmtHours(u.weekly_time)}`);
+      lines.push(
+        `${medal}  ${u.username.padEnd(20)} ${fmtHours(u.weekly_time)}`,
+      );
     });
   }
 
@@ -136,7 +151,9 @@ async function sendWeeklyReport() {
   } else {
     allTimeRows.forEach((u, i) => {
       const medal = ["🥇", "🥈", "🥉"][i] || `${String(i + 1).padStart(2)}.`;
-      lines.push(`${medal}  ${u.username.padEnd(20)} ${fmtHours(u.total_time)}`);
+      lines.push(
+        `${medal}  ${u.username.padEnd(20)} ${fmtHours(u.total_time)}`,
+      );
     });
   }
 

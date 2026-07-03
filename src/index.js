@@ -31,15 +31,15 @@ const {
 // ---------------------------------------------------------------------------
 // Config from .env
 // ---------------------------------------------------------------------------
-const TS3_HOST       = process.env.TS3_HOST        || "host.docker.internal";
+const TS3_HOST = process.env.TS3_HOST || "host.docker.internal";
 const TS3_QUERY_PORT = parseInt(process.env.TS3_QUERY_PORT) || 10011;
-const TS3_QUERY_USER = process.env.TS3_QUERY_USER  || "serveradmin";
-const TS3_QUERY_PASS = process.env.TS3_QUERY_PASS  || "";
-const TS3_BOT_NICK   = process.env.TS3_BOT_NICKNAME || "UC Stats Bot";
-const TS3_CHANNEL    = process.env.TS3_CHANNEL_NAME || "Stalking Room";
-const TS3_CHAN_PASS  = process.env.TS3_CHANNEL_PASS || "1337";
-const POLL_MS        = parseInt(process.env.POLL_INTERVAL_MS) || 60_000;
-const WEB_PORT       = parseInt(process.env.WEB_PORT) || 3000;
+const TS3_QUERY_USER = process.env.TS3_QUERY_USER || "serveradmin";
+const TS3_QUERY_PASS = process.env.TS3_QUERY_PASS || "";
+const TS3_BOT_NICK = process.env.TS3_BOT_NICKNAME || "UC Stats Bot";
+const TS3_CHANNEL = process.env.TS3_CHANNEL_NAME || "Stalking Room";
+const TS3_CHAN_PASS = process.env.TS3_CHANNEL_PASS || "1337";
+const POLL_MS = parseInt(process.env.POLL_INTERVAL_MS) || 60_000;
+const WEB_PORT = parseInt(process.env.WEB_PORT) || 3000;
 
 let ts3 = null;
 let pollTimer = null;
@@ -59,7 +59,7 @@ app.get("/api/leaderboard", async (_req, res) => {
               monthly_time, afk_time, session_count, last_seen, is_online, is_afk
        FROM users
        WHERE total_time > 0 OR is_online = 1
-       ORDER BY total_time DESC LIMIT 50`
+       ORDER BY total_time DESC LIMIT 50`,
     );
     res.json(rows || []);
   } catch (e) {
@@ -79,23 +79,23 @@ app.get("/api/user/:uid", async (req, res) => {
       `SELECT channel_name, total_time, visit_count
        FROM channel_time WHERE uid = ?
        ORDER BY total_time DESC LIMIT 5`,
-      [uid]
+      [uid],
     );
     const recentSessions = await db.allAsync(
       `SELECT session_start, session_end, duration_hours, channel_name
        FROM sessions WHERE uid = ?
        ORDER BY session_start DESC LIMIT 10`,
-      [uid]
+      [uid],
     );
     const hourly = await db.allAsync(
       `SELECT hour_of_day, SUM(ticks) AS t
        FROM hourly_activity WHERE uid = ?
        GROUP BY hour_of_day ORDER BY hour_of_day`,
-      [uid]
+      [uid],
     );
     const rankRow = await db.getAsync(
       "SELECT COUNT(*) AS r FROM users WHERE total_time > ?",
-      [user.total_time]
+      [user.total_time],
     );
 
     res.json({
@@ -118,14 +118,13 @@ app.get("/api/online", async (_req, res) => {
     const now = Date.now();
     const result = [];
     for (const [uid, sess] of sessions) {
-      const row = await db.getAsync(
-        "SELECT username, is_afk FROM users WHERE uid = ?",
-        [uid]
-      ).catch(() => null);
+      const row = await db
+        .getAsync("SELECT username, is_afk FROM users WHERE uid = ?", [uid])
+        .catch(() => null);
       result.push({
         uid,
-        username: (row && row.username) ? row.username : uid,
-        is_afk: (row && row.is_afk) ? row.is_afk : 0,
+        username: row && row.username ? row.username : uid,
+        is_afk: row && row.is_afk ? row.is_afk : 0,
         sessionHours: (now - sess.start.getTime()) / 3_600_000,
         channel: sess.channelName || "",
       });
@@ -144,12 +143,12 @@ app.get("/api/server", async (_req, res) => {
       `SELECT COUNT(*) AS users,
               SUM(total_time)    AS total_hours,
               SUM(session_count) AS total_sessions
-       FROM users`
+       FROM users`,
     );
     res.json({
-      users: (stats && stats.users) ? stats.users : 0,
-      total_hours: (stats && stats.total_hours) ? stats.total_hours : 0,
-      total_sessions: (stats && stats.total_sessions) ? stats.total_sessions : 0,
+      users: stats && stats.users ? stats.users : 0,
+      total_hours: stats && stats.total_hours ? stats.total_hours : 0,
+      total_sessions: stats && stats.total_sessions ? stats.total_sessions : 0,
       currently_online: getActiveSessions().size,
       bot_connected: isConnected,
     });
@@ -178,7 +177,7 @@ async function connectTS3() {
     ts3 = await TeamSpeak.connect({
       host: TS3_HOST,
       queryport: TS3_QUERY_PORT,
-      serverport: 9987,       // selects the virtual server automatically
+      serverport: 9987, // selects the virtual server automatically
       username: TS3_QUERY_USER,
       password: TS3_QUERY_PASS,
       nickname: TS3_BOT_NICK,
@@ -189,33 +188,23 @@ async function connectTS3() {
     isConnected = true;
     console.log("[TS3] Connected and authenticated.");
 
-    // Try to move the query client into the configured channel
-    try {
-      const channelList = await ts3.channelList();
-      const target = channelList.find(
-        (c) => c.name.toLowerCase() === TS3_CHANNEL.toLowerCase()
-      );
-      if (target) {
-        const self = await ts3.whoami();
-        // whoami() returns clid (number) and cid (number)
-        const targetCid = target.channelId || target.cid;
-        await ts3.clientMove(self.clid, targetCid, TS3_CHAN_PASS || undefined);
-        console.log(`[TS3] Bot moved to channel: ${target.name}`);
-      } else {
-        console.warn(`[TS3] Channel "${TS3_CHANNEL}" not found — tracking all channels anyway.`);
-      }
-    } catch (e) {
-      console.warn("[TS3] Could not move to channel (non-fatal):", e.message);
-    }
+    // NOTE: ServerQuery clients (type=0) cannot join voice channels.
+    // We use clientList() to monitor all channels — no need to "move" the bot.
+    console.log(
+      `[TS3] Monitoring channel: "${TS3_CHANNEL}" (pass: ${TS3_CHAN_PASS})`,
+    );
 
-    // Register for channel text messages
-    await ts3.registerEvent("textmessage", { targetmode: 2 });
-    // Register for private messages to the bot
-    await ts3.registerEvent("textmessage", { targetmode: 1 });
+    // Register for text message events using v3 event names
+    // textserver  = server-wide chat messages
+    // textprivate = private messages to the bot
+    // textchannel = channel chat messages (id=0 means all channels)
+    await ts3.registerEvent("textserver");
+    await ts3.registerEvent("textprivate");
+    await ts3.registerEvent("textchannel", 0);
 
     ts3.on("textmessage", async (event) => {
       try {
-        const text = event.msg ? event.msg.trim() : "";
+        const text = (event.msg || "").trim();
         const invoker = event.invoker;
         if (!text || !invoker) return;
 
@@ -223,23 +212,25 @@ async function connectTS3() {
         const self = await ts3.whoami().catch(() => null);
         if (self && invoker.clid === self.clid) return;
 
-        const uid  = invoker.uniqueIdentifier;
-        const nick = invoker.nickname;
+        const uid = invoker.uniqueIdentifier;
+        const nick = invoker.nickname || "Unknown";
 
         const reply = await handleMessage(text, uid, nick);
         if (!reply) return;
 
-        // Determine where to send the reply
-        // targetmode: 1=client (private), 2=channel, 3=server
+        // targetmode: 1 = private, 2 = channel, 3 = server
         const mode = event.targetmode;
         if (mode === 1) {
           // Private message — reply privately to the invoker
           await ts3.sendTextMessage(invoker.clid, 1, reply);
         } else {
-          // Channel message — reply to the channel the invoker is in
-          const targetCid = invoker.channelId || invoker.cid;
-          if (targetCid) {
-            await ts3.sendTextMessage(targetCid, 2, reply);
+          // Channel or server message — reply to the same channel
+          const targetId =
+            event.targetmode === 3
+              ? 0 // server-wide: target 0 = all virtual server
+              : (await ts3.clientInfo(invoker.clid).catch(() => null))?.cid;
+          if (targetId) {
+            await ts3.sendTextMessage(targetId, 2, reply);
           }
         }
       } catch (e) {

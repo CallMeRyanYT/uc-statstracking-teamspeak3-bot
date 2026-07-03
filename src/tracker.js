@@ -52,8 +52,8 @@ function shouldTrackClient(client) {
 }
 
 // ---------------------------------------------------------------------------
-// evaluateAway -- checks if the client is away and for how long
-// Returns { earnTime: bool, isAway: bool }
+// evaluateAway -- checks if the client is away and for how long.
+// Returns ONLY calculated values (NO DB writes) to avoid races with the UPSERT.
 // ---------------------------------------------------------------------------
 async function evaluateAway(client) {
   const uid = client.uniqueIdentifier;
@@ -63,40 +63,28 @@ async function evaluateAway(client) {
   const awayActive = client.away === true || client.away === 1;
 
   if (!awayActive) {
-    // They are back -- clear the away timer
-    await db.runAsync(
-      "UPDATE users SET away_since = NULL, is_afk = 0 WHERE uid = ?",
-      [uid]
-    );
-    return { earnTime: true, isAway: false };
+    // They are back -- clear away state (handled by caller)
+    return { earnTime: true, isAway: false, awaySince: null };
   }
 
-  // Client is in away status -- how long?
-  const row = await db.getAsync("SELECT away_since FROM users WHERE uid = ?", [uid]);
+  // Client is in away status -- fetch current state from DB
+  const row = await db.getAsync("SELECT away_since FROM users WHERE uid = ?", [
+    uid,
+  ]);
 
-  if (!row) {
-    // New user we haven't seen before -- grace period, start recording
-    return { earnTime: true, isAway: true };
-  }
-
-  if (!row.away_since) {
-    // First tick we see them as away -- record when it started
-    await db.runAsync(
-      "UPDATE users SET away_since = ?, is_afk = 0 WHERE uid = ?",
-      [now.toISOString(), uid]
-    );
-    return { earnTime: true, isAway: true };
+  if (!row || !row.away_since) {
+    // No existing away_since — start the timer now
+    return { earnTime: true, isAway: true, awaySince: now.toISOString() };
   }
 
   const awayMin = (now - new Date(row.away_since)) / 60_000;
   if (awayMin >= AWAY_THRESHOLD_MIN) {
-    // Over threshold -- pause time and mark as AFK
-    await db.runAsync("UPDATE users SET is_afk = 1 WHERE uid = ?", [uid]);
-    return { earnTime: false, isAway: true };
+    // Over threshold — time is PAUSED, mark as AFK
+    return { earnTime: false, isAway: true, awaySince: row.away_since };
   }
 
-  // Away but under threshold -- still earns time
-  return { earnTime: true, isAway: true };
+  // Away but still under threshold — still earns time
+  return { earnTime: true, isAway: true, awaySince: row.away_since };
 }
 
 // ---------------------------------------------------------------------------
@@ -109,31 +97,38 @@ async function processClientTick(client, channelMap) {
   const username = client.nickname;
   // channelId is a number in v3; convert to string for map lookup and DB storage
   const channelId = String(client.channelId || client.cid || "");
-  const channelName = channelMap[channelId] || ("Channel " + channelId);
+  const channelName = channelMap[channelId] || "Channel " + channelId;
   const now = new Date();
 
-  const { earnTime, isAway } = await evaluateAway(client);
+  const { earnTime, isAway, awaySince } = await evaluateAway(client);
+  // is_afk in DB means "time is currently paused" (earnTime === false)
+  const afkFlag = earnTime ? 0 : 1;
 
-  // Upsert the user row -- safe even if they don't exist yet
+  // Atomic upsert — all user state in one write, no race with evaluateAway
   await db.runAsync(
     `INSERT INTO users
        (uid, username, total_time, daily_time, weekly_time, monthly_time,
         afk_time, session_count, first_seen, last_seen, last_update,
-        is_online, is_afk, current_channel)
-     VALUES (?, ?, 0, 0, 0, 0, 0, 0, ?, ?, ?, 1, ?, ?)
+        is_online, is_afk, away_since, current_channel)
+     VALUES (?, ?, 0, 0, 0, 0, 0, 0, ?, ?, ?, 1, ?, ?, ?)
      ON CONFLICT(uid) DO UPDATE SET
        username        = excluded.username,
        last_seen       = excluded.last_seen,
        last_update     = excluded.last_update,
        is_online       = 1,
        is_afk          = excluded.is_afk,
+       away_since      = excluded.away_since,
        current_channel = excluded.current_channel`,
     [
-      uid, username,
-      now.toISOString(), now.toISOString(), now.toISOString(),
-      isAway ? 1 : 0,
+      uid,
+      username,
+      now.toISOString(),
+      now.toISOString(),
+      now.toISOString(),
+      afkFlag,
+      awaySince || null,
       channelName,
-    ]
+    ],
   );
 
   // Session tracking
@@ -142,7 +137,7 @@ async function processClientTick(client, channelMap) {
     const result = await db.runAsync(
       `INSERT INTO sessions (uid, username, channel_id, channel_name, session_start)
        VALUES (?, ?, ?, ?, ?)`,
-      [uid, username, channelId, channelName, now.toISOString()]
+      [uid, username, channelId, channelName, now.toISOString()],
     );
     activeSessions.set(uid, {
       start: now,
@@ -170,7 +165,13 @@ async function processClientTick(client, channelMap) {
          weekly_time  = weekly_time  + ?,
          monthly_time = monthly_time + ?
        WHERE uid = ?`,
-      [MINUTES_PER_TICK, MINUTES_PER_TICK, MINUTES_PER_TICK, MINUTES_PER_TICK, uid]
+      [
+        MINUTES_PER_TICK,
+        MINUTES_PER_TICK,
+        MINUTES_PER_TICK,
+        MINUTES_PER_TICK,
+        uid,
+      ],
     );
 
     // Per-channel time
@@ -180,7 +181,7 @@ async function processClientTick(client, channelMap) {
        ON CONFLICT(uid, channel_id) DO UPDATE SET
          channel_name = excluded.channel_name,
          total_time   = total_time + ?`,
-      [uid, channelId, channelName, MINUTES_PER_TICK, MINUTES_PER_TICK]
+      [uid, channelId, channelName, MINUTES_PER_TICK, MINUTES_PER_TICK],
     );
 
     // Hour-of-day heatmap
@@ -188,13 +189,13 @@ async function processClientTick(client, channelMap) {
       `INSERT INTO hourly_activity (uid, hour_of_day, day_of_week, ticks)
        VALUES (?, ?, ?, 1)
        ON CONFLICT(uid, hour_of_day, day_of_week) DO UPDATE SET ticks = ticks + 1`,
-      [uid, now.getHours(), now.getDay()]
+      [uid, now.getHours(), now.getDay()],
     );
   } else {
     // Accumulate AFK time separately
     await db.runAsync(
       "UPDATE users SET afk_time = afk_time + ? WHERE uid = ?",
-      [MINUTES_PER_TICK, uid]
+      [MINUTES_PER_TICK, uid],
     );
   }
 }
@@ -206,9 +207,7 @@ let _prevOnlineUIDs = new Set();
 
 async function reconcileOfflineClients(currentClients) {
   const currentUIDs = new Set(
-    currentClients
-      .filter(shouldTrackClient)
-      .map((c) => c.uniqueIdentifier)
+    currentClients.filter(shouldTrackClient).map((c) => c.uniqueIdentifier),
   );
 
   for (const uid of _prevOnlineUIDs) {
@@ -216,7 +215,7 @@ async function reconcileOfflineClients(currentClients) {
       const row = await db
         .getAsync("SELECT username FROM users WHERE uid = ?", [uid])
         .catch(() => null);
-      await handleClientLeft(uid, (row && row.username) ? row.username : uid);
+      await handleClientLeft(uid, row && row.username ? row.username : uid);
     }
   }
 
@@ -235,10 +234,17 @@ async function handleClientLeft(uid, username) {
     if (sess.sessionDbId) {
       await db.runAsync(
         "UPDATE sessions SET session_end = ?, duration_hours = ? WHERE id = ?",
-        [now.toISOString(), durationHours, sess.sessionDbId]
+        [now.toISOString(), durationHours, sess.sessionDbId],
       );
     }
-    await logEvent(uid, username, "leave", sess.channelId, sess.channelName, now);
+    await logEvent(
+      uid,
+      username,
+      "leave",
+      sess.channelId,
+      sess.channelName,
+      now,
+    );
     activeSessions.delete(uid);
   }
 
@@ -251,7 +257,7 @@ async function handleClientLeft(uid, username) {
        last_seen   = ?,
        session_count = session_count + 1
      WHERE uid = ?`,
-    [now.toISOString(), uid]
+    [now.toISOString(), uid],
   );
 }
 
@@ -263,11 +269,13 @@ async function logEvent(uid, username, type, channelId, channelName, ts) {
     `INSERT INTO events (uid, username, event_type, channel_id, channel_name, timestamp)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [
-      uid, username, type,
-      channelId  || null,
+      uid,
+      username,
+      type,
+      channelId || null,
       channelName || null,
       (ts || new Date()).toISOString(),
-    ]
+    ],
   );
 }
 
