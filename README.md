@@ -17,7 +17,7 @@ A **fully-featured activity & stats tracking bot** for TeamSpeak 3 servers. Trac
 | **AFK Time Log** | Tracks separately so you can see real vs AFK presence |
 | **Chat Commands** | Type commands in TS3 chat to query stats (prefix: `#`) |
 | **Discord Webhook** | Hourly leaderboard, daily MVP, weekly summary — automatically posted |
-| **Web Dashboard** | Dark-mode live leaderboard at `localhost:3000` |
+| **Web Dashboard** | Dark-mode live leaderboard at `localhost:3010` |
 | **Cloudflare Tunnel** | Public URL auto-generated — no port forwarding needed |
 | **Localhost Support** | Works when TS3 server and bot run on the **same PC** |
 | **Persistent Data** | SQLite database stored in a Docker volume — survives restarts |
@@ -57,7 +57,7 @@ docker compose up -d
 
 ### Step 3 — View the Dashboard
 
-- **Local:** http://localhost:3000
+- **Local:** http://localhost:3010
 - **Public (Cloudflare Tunnel):** Run `docker logs uc-stats-tunnel` — the public URL is printed there
 
 ---
@@ -141,39 +141,92 @@ Set `JOIN_LEAVE_WEBHOOK=true` in your `.env` to also post when users join or lea
 
 ---
 
-## Cloudflare Tunnel (Public Dashboard URL)
+## Cloudflare Tunnel Setup
 
-The bot automatically starts a **Cloudflare Quick Tunnel** — a free, temporary public URL that lets anyone access the web dashboard without any port forwarding or Cloudflare account.
+Cloudflare Tunnel is used only for the public web dashboard. It does not make the bot able to connect to TeamSpeak ServerQuery. The bot still needs direct TCP access to your TS3 ServerQuery port, usually `10011`.
 
-To get your public URL:
+### Option A: Temporary Quick Tunnel
 
-```powershell
-docker logs uc-stats-tunnel
-```
+This is the easiest option. It creates a random `trycloudflare.com` URL without a Cloudflare account.
 
-Look for a line like:
-```
-Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):
-https://some-random-name.trycloudflare.com
-```
-
-> **Note:** Quick tunnels give a new random URL each time the container restarts. For a permanent URL, see [Permanent Cloudflare Tunnel Setup](#permanent-cloudflare-tunnel) below.
-
-### Permanent Cloudflare Tunnel
-
-For a fixed URL (e.g. `stats.yourdomain.com`):
-
-1. Create a free [Cloudflare account](https://dash.cloudflare.com)
-2. Go to **Zero Trust → Networks → Tunnels → Create a Tunnel**
-3. Copy the **Tunnel Token** they give you
-4. Add to your `.env`:
+1. Start Docker Desktop.
+2. In this project folder, run:
+   ```powershell
+   docker compose up -d --build
    ```
+3. Wait a few seconds, then get the public URL:
+   ```powershell
+   docker logs uc-stats-tunnel
+   ```
+4. Look for a line like:
+   ```text
+   Your quick Tunnel has been created! Visit it at:
+   https://example-example-example.trycloudflare.com
+   ```
+5. Open that URL. You should see the same dashboard as `http://localhost:3010`.
+
+Quick tunnel notes:
+- The URL changes when the tunnel container is recreated.
+- Use this for testing or sharing the dashboard temporarily.
+- The compose command for quick tunnels is:
+  ```yaml
+  command: tunnel --no-autoupdate --url http://uc-stats-bot:3000
+  ```
+
+### Option B: Permanent Cloudflare Dashboard URL
+
+Use this if you own a domain in Cloudflare and want a stable URL such as `stats.yourdomain.com`.
+
+1. Log in to [Cloudflare](https://dash.cloudflare.com).
+2. Open **Zero Trust**.
+3. Go to **Networks** -> **Tunnels**.
+4. Select **Create a tunnel**.
+5. Choose **Cloudflared**.
+6. Name it something like `uc-stats-dashboard`.
+7. Choose **Docker** as the environment.
+8. Copy the generated tunnel token.
+9. Add the token to `.env`:
+   ```env
    CLOUDFLARE_TUNNEL_TOKEN=your_tunnel_token_here
    ```
-5. Update `docker-compose.yml` — replace the `cloudflare-tunnel` command with:
-   ```yaml
-   command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+10. In `docker-compose.yml`, replace the quick tunnel command with:
+    ```yaml
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    ```
+11. In the Cloudflare tunnel route settings, add a public hostname:
+    - Subdomain: `stats`
+    - Domain: your Cloudflare domain
+    - Type: `HTTP`
+    - URL: `http://uc-stats-bot:3000`
+12. Restart:
+    ```powershell
+    docker compose down
+    docker compose up -d
+    ```
+13. In Cloudflare, the tunnel should show **Healthy**. Open your hostname.
+
+### Cloudflare Troubleshooting
+
+If the public dashboard does not load:
+
+1. Check the local dashboard first:
+   ```powershell
+   Invoke-WebRequest http://localhost:3010/api/health
    ```
+2. Check the tunnel logs:
+   ```powershell
+   docker logs -f uc-stats-tunnel
+   ```
+3. Check both containers are running:
+   ```powershell
+   docker ps
+   ```
+4. For quick tunnels, restart only the tunnel:
+   ```powershell
+   docker compose restart cloudflare-tunnel
+   ```
+
+If the dashboard loads but says **Bot Offline**, Cloudflare is fine. The problem is the bot's connection to TeamSpeak ServerQuery.
 
 ---
 
@@ -199,16 +252,21 @@ The 5-minute threshold matches the server rule: if you toggle away and stay away
 | `TS3_QUERY_USER` | `serveradmin` | ServerQuery username |
 | `TS3_QUERY_PASS` | *(required)* | ServerQuery password |
 | `TS3_SERVER_ID` | `1` | Virtual server ID |
+| `TS3_SERVER_PORT` | `9987` | Virtual server voice port inside TeamSpeak |
+| `TS3_CONNECT_TIMEOUT_MS` | `10000` | TCP/login timeout for ServerQuery |
 | `TS3_BOT_NICKNAME` | `UC Stats Bot` | Bot's display name in server tools |
 | `DISCORD_WEBHOOK_URL` | *(pre-set)* | Discord webhook for leaderboard posts |
 | `JOIN_LEAVE_WEBHOOK` | `false` | Post join/leave events to Discord |
+| `MIRROR_COMMAND_RESULTS_TO_DISCORD` | `true` | Mirror command results to Discord, except `#help` |
 | `AFK_AWAY_THRESHOLD_MINUTES` | `5` | Minutes before away is treated as AFK |
 | `EXCLUDED_CHANNELS` | *(blank)* | Comma-separated channel IDs to skip tracking |
 | `BOT_NICKNAMES` | `UC Stats Bot,serveradmin` | Nicknames to never track |
 | `POLL_INTERVAL_MS` | `60000` | How often to check online clients (ms) |
-| `WEB_PORT` | `3000` | Web dashboard port |
+| `WEB_PORT` | `3000` | Port the app listens on inside the container |
+| `HOST_WEB_PORT` | `3010` | Port exposed on your Windows PC |
 | `TZ` | `UTC` | Timezone for cron labels |
 | `COMMAND_PREFIX` | `#` | Prefix for chat commands |
+| `DEBUG_RAW_TS3` | `false` | Print raw ServerQuery text-message traffic |
 
 ---
 
@@ -229,6 +287,30 @@ The 5-minute threshold matches the server rule: if you toggle away and stay away
 # Test if the port is reachable from your machine:
 Test-NetConnection -ComputerName 127.0.0.1 -Port 10011
 ```
+
+---
+
+### Bot won't connect - "Socket Timeout reached"
+
+**Cause:** The hostname resolves, but the TCP ServerQuery port is not answering. This usually means the port in `.env` points to the TeamSpeak voice/UDP tunnel, the tunnel is down, or ServerQuery TCP is not forwarded.
+
+**Fix checklist:**
+1. If your `.env` has `TS3_HOST=hostname:port`, that `port` must be the ServerQuery TCP port.
+2. Test the exact host and port:
+   ```powershell
+   Test-NetConnection -ComputerName viscous-salmon.gl.at.ply.gg -Port 53645
+   ```
+3. If `TcpTestSucceeded` is `False`, the bot cannot connect yet. Fix the tunnel/forward/firewall first.
+4. If the TS3 server is on your same PC, use:
+   ```env
+   TS3_HOST=host.docker.internal
+   TS3_QUERY_PORT=10011
+   ```
+5. Make sure the TS3 server's ServerQuery is listening on TCP `10011`, not just voice UDP `9987`.
+6. If the port is reachable but slow, raise:
+   ```env
+   TS3_CONNECT_TIMEOUT_MS=20000
+   ```
 
 ---
 
@@ -255,7 +337,7 @@ Test-NetConnection -ComputerName 127.0.0.1 -Port 10011
 
 ### Web dashboard is blank / shows no data
 
-1. Visit http://localhost:3000/api/leaderboard in your browser
+1. Visit http://localhost:3010/api/leaderboard in your browser
 2. If it returns `[]` — no data yet. Wait for the next poll (up to 1 minute).
 3. If it returns an error — check bot logs: `docker logs uc-stats-bot`
 

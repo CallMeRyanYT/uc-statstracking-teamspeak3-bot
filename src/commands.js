@@ -9,6 +9,8 @@ const db = require("./database");
 const { getActiveSessions } = require("./tracker");
 
 const PREFIX = process.env.COMMAND_PREFIX || "#";
+const HOURS_PER_TICK =
+  (parseInt(process.env.POLL_INTERVAL_MS, 10) || 60_000) / 3_600_000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Formatting helpers
@@ -66,7 +68,7 @@ async function cmdHelp() {
 // ─────────────────────────────────────────────────────────────────────────────
 // !stats [name]
 // ─────────────────────────────────────────────────────────────────────────────
-async function cmdStats(args, senderUid, senderNick) {
+async function cmdStats(args, senderUid) {
   let user;
   if (args.length > 0) {
     const name = args.join(" ");
@@ -250,8 +252,9 @@ async function cmdPeak(args, senderUid) {
   const lines = ["📈 [b]Your Peak Hours[/b]", "──────────────────────"];
   rows.forEach((r, i) => {
     const h = r.hour_of_day;
+    const peakHours = r.t * HOURS_PER_TICK;
     const label = `${String(h).padStart(2, "0")}:00 – ${String(h + 1).padStart(2, "0")}:00`;
-    lines.push(`${i + 1}. ${label} — ${fmtHours(r.t / 60)}`);
+    lines.push(`${i + 1}. ${label} — ${fmtHours(peakHours)}`);
   });
   return lines.join("\n");
 }
@@ -373,7 +376,7 @@ async function handleMessage(rawText, senderUid, senderNick) {
       case "help":
         return await cmdHelp();
       case "stats":
-        return await cmdStats(args, senderUid, senderNick);
+        return await cmdStats(args, senderUid);
       case "rank":
         return await cmdRank(args, senderUid);
       case "top":

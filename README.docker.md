@@ -97,9 +97,9 @@ A healthy startup looks like:
 ===================================================
    UC Stats Tracking Bot for TeamSpeak 3
    Connecting to : host.docker.internal:10011
-   Web Dashboard : http://localhost:3000
+   Web Dashboard : http://localhost:3010
 ===================================================
-[Web] Dashboard running at http://localhost:3000
+[Web] Dashboard running at http://localhost:3000 inside Docker; open http://localhost:3010 on Windows
 [TS3] Connecting to host.docker.internal:10011 ...
 [TS3] Connected and authenticated.
 [TS3] Monitoring all channels (global tracking).

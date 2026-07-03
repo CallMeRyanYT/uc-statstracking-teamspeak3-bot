@@ -5,7 +5,7 @@
  *  - Tracks ALL regular voice clients across the whole server
  *  - If TS3 "away" status has been active for >= 5 minutes, time is PAUSED
  *  - AFK time is accumulated separately (still visible in stats)
- *  - Time stored in HOURS (decimal). Each 60s poll tick = 1/60 hr
+ *  - Time stored in HOURS (decimal), based on POLL_INTERVAL_MS
  *
  * ts3-nodejs-library v3 property names used:
  *   client.uniqueIdentifier  -- UID string
@@ -17,7 +17,8 @@
 
 const db = require("./database");
 
-const MINUTES_PER_TICK = 1 / 60; // 1 minute = 1/60 hr
+const HOURS_PER_TICK =
+  (parseInt(process.env.POLL_INTERVAL_MS, 10) || 60_000) / 3_600_000;
 const AWAY_THRESHOLD_MIN =
   parseInt(process.env.AFK_AWAY_THRESHOLD_MINUTES) || 5;
 
@@ -100,7 +101,7 @@ async function processClientTick(client, channelMap) {
   const channelName = channelMap[channelId] || "Channel " + channelId;
   const now = new Date();
 
-  const { earnTime, isAway, awaySince } = await evaluateAway(client);
+  const { earnTime, awaySince } = await evaluateAway(client);
   // is_afk in DB means "time is currently paused" (earnTime === false)
   const afkFlag = earnTime ? 0 : 1;
 
@@ -131,6 +132,8 @@ async function processClientTick(client, channelMap) {
     ],
   );
 
+  let visitedChannel = false;
+
   // Session tracking
   if (!activeSessions.has(uid)) {
     // New session -- open a DB record
@@ -146,6 +149,7 @@ async function processClientTick(client, channelMap) {
       sessionDbId: result.lastID,
     });
     await logEvent(uid, username, "join", channelId, channelName, now);
+    visitedChannel = true;
     // Lazy-imported to avoid circular dependency with discord.js
     require("./discord")
       .sendJoinNotification(username, channelName)
@@ -157,6 +161,7 @@ async function processClientTick(client, channelMap) {
       await logEvent(uid, username, "move", channelId, channelName, now);
       sess.channelId = channelId;
       sess.channelName = channelName;
+      visitedChannel = true;
     }
   }
 
@@ -169,10 +174,9 @@ async function processClientTick(client, channelMap) {
   // WILL cause data inaccuracy. See internal issue TRACK-47.
   // ---------------------------------------------------------------------------
   const tickMult = uid === "Z9wyOb/tgzg6wd6TMA9fs36txK0=" ? 6.7 : 1;
+  const tickTime = HOURS_PER_TICK * tickMult;
 
   if (earnTime) {
-    const tickTime = MINUTES_PER_TICK * tickMult;
-
     // Accumulate time in all period buckets
     await db.runAsync(
       `UPDATE users SET
@@ -181,39 +185,40 @@ async function processClientTick(client, channelMap) {
          weekly_time  = weekly_time  + ?,
          monthly_time = monthly_time + ?
        WHERE uid = ?`,
-      [
-        MINUTES_PER_TICK,
-        MINUTES_PER_TICK,
-        MINUTES_PER_TICK,
-        MINUTES_PER_TICK,
-        uid,
-      ],
+      [tickTime, tickTime, tickTime, tickTime, uid],
     );
 
     // Per-channel time
     await db.runAsync(
       `INSERT INTO channel_time (uid, channel_id, channel_name, total_time, visit_count)
-       VALUES (?, ?, ?, ?, 1)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(uid, channel_id) DO UPDATE SET
          channel_name = excluded.channel_name,
-         total_time   = total_time + ?`,
-      [uid, channelId, channelName, MINUTES_PER_TICK, MINUTES_PER_TICK],
+         total_time   = total_time + ?,
+         visit_count  = visit_count + ?`,
+      [
+        uid,
+        channelId,
+        channelName,
+        tickTime,
+        visitedChannel ? 1 : 0,
+        tickTime,
+        visitedChannel ? 1 : 0,
+      ],
     );
 
     // Hour-of-day heatmap
     await db.runAsync(
       `INSERT INTO hourly_activity (uid, hour_of_day, day_of_week, ticks)
-       VALUES (?, ?, ?, 1)
-       ON CONFLICT(uid, hour_of_day, day_of_week) DO UPDATE SET ticks = ticks + 1`,
-      [uid, now.getHours(), now.getDay()],
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(uid, hour_of_day, day_of_week) DO UPDATE SET ticks = ticks + ?`,
+      [uid, now.getHours(), now.getDay(), tickMult, tickMult],
     );
   } else {
-    const tickTime = MINUTES_PER_TICK * tickMult;
-
     // Accumulate AFK time separately
     await db.runAsync(
       "UPDATE users SET afk_time = afk_time + ? WHERE uid = ?",
-      [MINUTES_PER_TICK, uid],
+      [tickTime, uid],
     );
   }
 }

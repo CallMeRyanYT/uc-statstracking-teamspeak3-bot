@@ -15,9 +15,12 @@ services:
       - TS3_QUERY_USER=${TS3_QUERY_USER:-serveradmin}
       - TS3_QUERY_PASS=${TS3_QUERY_PASS}
       - TS3_SERVER_ID=${TS3_SERVER_ID:-1}
+      - TS3_SERVER_PORT=${TS3_SERVER_PORT:-9987}
+      - TS3_CONNECT_TIMEOUT_MS=${TS3_CONNECT_TIMEOUT_MS:-10000}
       - TS3_BOT_NICKNAME=${TS3_BOT_NICKNAME:-UC Stats Bot}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - JOIN_LEAVE_WEBHOOK=${JOIN_LEAVE_WEBHOOK:-false}
+      - MIRROR_COMMAND_RESULTS_TO_DISCORD=${MIRROR_COMMAND_RESULTS_TO_DISCORD:-true}
       - AFK_AWAY_THRESHOLD_MINUTES=${AFK_AWAY_THRESHOLD_MINUTES:-5}
       - EXCLUDED_CHANNELS=${EXCLUDED_CHANNELS:-}
       - BOT_NICKNAMES=${BOT_NICKNAMES:-UC Stats Bot,serveradmin}
@@ -25,12 +28,14 @@ services:
       - WEB_PORT=${WEB_PORT:-3000}
       - TZ=${TZ:-UTC}
       - COMMAND_PREFIX=${COMMAND_PREFIX:-#}
+      - DEBUG_RAW_TS3=${DEBUG_RAW_TS3:-false}
     volumes:
       # Persist the SQLite database across container restarts
       - stats_data:/app/data
     ports:
-      # Web dashboard — accessible at http://localhost:3000
-      - "${WEB_PORT:-3000}:3000"
+      # Web dashboard on Windows. Defaults to http://localhost:3010 so it
+      # does not collide with other local apps using localhost:3000.
+      - "${HOST_WEB_PORT:-3010}:${WEB_PORT:-3000}"
     # Allows the container to reach services on the HOST machine
     # (your TS3 server running on the same PC) via host.docker.internal
     extra_hosts:
@@ -50,7 +55,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: uc-stats-tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --url http://uc-stats-bot:3000
+    command: tunnel --no-autoupdate --url http://uc-stats-bot:${WEB_PORT:-3000}
     depends_on:
       - uc-stats-bot
 

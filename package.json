@@ -5,17 +5,25 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "lint": "npm run lint:js && npm run lint:web",
+    "lint:js": "eslint src eslint.config.js",
+    "lint:web": "htmlhint web/**/*.html",
+    "check": "npm run lint && node --check src/index.js && node --check src/commands.js && node --check src/tracker.js && node --check src/discord.js && node --check src/database.js"
   },
   "dependencies": {
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "node-cron": "^3.0.3",
-    "sqlite3": "^5.1.7",
+    "node-cron": "^4.5.0",
+    "sqlite3": "^6.0.1",
     "ts3-nodejs-library": "^3.4.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
+    "htmlhint": "^1.9.2",
     "nodemon": "^3.1.0"
   },
   "engines": {

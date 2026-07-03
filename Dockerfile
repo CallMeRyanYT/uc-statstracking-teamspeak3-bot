@@ -9,9 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install dependencies first (layer-cached)
+# Install dependencies first (layer-cached). Build sqlite3 inside this image so
+# its native binary links against the container's glibc instead of a newer host.
 COPY package*.json ./
-RUN npm install --omit=dev --no-audit
+RUN npm ci --omit=dev --no-audit --build-from-source=sqlite3
 
 # Copy source
 COPY src/ ./src/

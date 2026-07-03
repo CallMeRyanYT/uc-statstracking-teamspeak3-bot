@@ -33,17 +33,96 @@ const {
 // ---------------------------------------------------------------------------
 // Config from .env
 // ---------------------------------------------------------------------------
-const TS3_HOST = process.env.TS3_HOST || "host.docker.internal";
-const TS3_QUERY_PORT = parseInt(process.env.TS3_QUERY_PORT) || 10011;
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseHostAndPort(rawHost, rawPort, fallbackPort) {
+  let host = String(rawHost || "host.docker.internal").trim();
+  let portFromHost = null;
+
+  if (host.includes("://")) {
+    const parsed = new URL(host);
+    host = parsed.hostname;
+    portFromHost = parsed.port ? Number.parseInt(parsed.port, 10) : null;
+  } else if (host.startsWith("[") && host.includes("]:")) {
+    const end = host.indexOf("]:");
+    const possiblePort = host.slice(end + 2);
+    if (/^\d+$/.test(possiblePort)) {
+      portFromHost = Number.parseInt(possiblePort, 10);
+      host = host.slice(1, end);
+    }
+  } else {
+    const lastColon = host.lastIndexOf(":");
+    const hasSingleColon = lastColon !== -1 && host.indexOf(":") === lastColon;
+    const possiblePort = hasSingleColon ? host.slice(lastColon + 1) : "";
+    if (/^\d+$/.test(possiblePort)) {
+      portFromHost = Number.parseInt(possiblePort, 10);
+      host = host.slice(0, lastColon);
+    }
+  }
+
+  return {
+    host,
+    port: portFromHost || parsePositiveInt(rawPort, fallbackPort),
+    portFromHost,
+  };
+}
+
+const ts3Address = parseHostAndPort(
+  process.env.TS3_HOST,
+  process.env.TS3_QUERY_PORT,
+  10011,
+);
+const TS3_HOST = ts3Address.host;
+const TS3_QUERY_PORT = ts3Address.port;
 const TS3_QUERY_USER = process.env.TS3_QUERY_USER || "serveradmin";
 const TS3_QUERY_PASS = process.env.TS3_QUERY_PASS || "";
 const TS3_BOT_NICK = process.env.TS3_BOT_NICKNAME || "UC Stats Bot";
-const POLL_MS = parseInt(process.env.POLL_INTERVAL_MS) || 60_000;
-const WEB_PORT = parseInt(process.env.WEB_PORT) || 3000;
+const TS3_SERVER_ID = parsePositiveInt(process.env.TS3_SERVER_ID, 1);
+const TS3_SERVER_PORT = parsePositiveInt(process.env.TS3_SERVER_PORT, 9987);
+const COMMAND_PREFIX = process.env.COMMAND_PREFIX || "#";
+const MIRROR_COMMAND_RESULTS =
+  process.env.MIRROR_COMMAND_RESULTS_TO_DISCORD !== "false";
+const DEBUG_RAW_TS3 = process.env.DEBUG_RAW_TS3 === "true";
+const POLL_MS = parsePositiveInt(process.env.POLL_INTERVAL_MS, 60_000);
+const WEB_PORT = parsePositiveInt(process.env.WEB_PORT, 3000);
+const TS3_CONNECT_TIMEOUT_MS = parsePositiveInt(
+  process.env.TS3_CONNECT_TIMEOUT_MS,
+  10_000,
+);
 
 let ts3 = null;
 let pollTimer = null;
 let isConnected = false;
+let reconnectTimer = null;
+
+function checkTcpReachable(host, port, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host, port });
+    let settled = false;
+
+    function done(error) {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      if (error) reject(error);
+      else resolve();
+    }
+
+    socket.setTimeout(timeoutMs, () => {
+      done(
+        new Error(
+          `Timed out opening TCP ${host}:${port} after ${timeoutMs}ms. ` +
+            "Check that this is the TeamSpeak ServerQuery TCP port and that the tunnel/firewall allows TCP.",
+        ),
+      );
+    });
+    socket.once("connect", () => done());
+    socket.once("error", (err) => done(err));
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Express web dashboard
@@ -158,6 +237,51 @@ app.get("/api/server", async (_req, res) => {
   }
 });
 
+app.get("/api/activity", async (_req, res) => {
+  try {
+    const rows = await db.allAsync(
+      `SELECT username, event_type, channel_name, timestamp
+       FROM events
+       ORDER BY timestamp DESC LIMIT 20`,
+    );
+    res.json(rows || []);
+  } catch (e) {
+    console.error("[API] /activity error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/channels", async (_req, res) => {
+  try {
+    const rows = await db.allAsync(
+      `SELECT channel_name,
+              SUM(total_time) AS total_time,
+              SUM(visit_count) AS visit_count,
+              COUNT(DISTINCT uid) AS user_count
+       FROM channel_time
+       WHERE total_time > 0
+       GROUP BY channel_name
+       ORDER BY total_time DESC LIMIT 10`,
+    );
+    res.json(rows || []);
+  } catch (e) {
+    console.error("[API] /channels error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/health", (_req, res) => {
+  res.json({
+    ok: true,
+    bot_connected: isConnected,
+    active_sessions: getActiveSessions().size,
+    ts3_host: TS3_HOST,
+    ts3_query_port: TS3_QUERY_PORT,
+    poll_interval_ms: POLL_MS,
+    uptime_seconds: Math.round(process.uptime()),
+  });
+});
+
 app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "../web/index.html"));
 });
@@ -173,16 +297,91 @@ let rawSocket = null;
 let rawBuf = "";
 let rawServerSelected = false;
 let rawEventsRegistered = false;
+let rawReconnectTimer = null;
+let rawShouldReconnect = false;
+
+function escapeServerQueryValue(value) {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\//g, "\\/")
+    .replace(/\|/g, "\\p")
+    .replace(/ /g, "\\s")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
+}
+
+function decodeServerQueryValue(value) {
+  const escapes = {
+    "\\": "\\",
+    "/": "/",
+    s: " ",
+    p: "|",
+    n: "\n",
+    r: "\r",
+    t: "\t",
+    a: "\x07",
+    b: "\b",
+    f: "\f",
+    v: "\v",
+  };
+
+  return String(value).replace(/\\(.)/g, (_, ch) => escapes[ch] ?? ch);
+}
+
+function parseServerQueryParams(line) {
+  const params = {};
+  const fields = line.trim().split(/\s+/);
+
+  for (const field of fields.slice(1)) {
+    const eq = field.indexOf("=");
+    if (eq === -1) continue;
+
+    const key = field.slice(0, eq);
+    const value = field.slice(eq + 1);
+    params[key] = decodeServerQueryValue(value);
+  }
+
+  return params;
+}
+
+function buildRawUseCommand() {
+  return TS3_SERVER_ID
+    ? `use sid=${TS3_SERVER_ID}`
+    : `use port=${TS3_SERVER_PORT}`;
+}
+
+function resetRawState() {
+  rawBuf = "";
+  rawServerSelected = false;
+  rawEventsRegistered = false;
+}
 
 function startRawTextListener() {
+  if (rawSocket && !rawSocket.destroyed) return;
+
+  rawShouldReconnect = true;
+  if (rawReconnectTimer) {
+    clearTimeout(rawReconnectTimer);
+    rawReconnectTimer = null;
+  }
+
   console.log("[Raw] Starting raw TCP text listener...");
   rawSocket = new net.Socket();
   rawSocket.connect(TS3_QUERY_PORT, TS3_HOST, () => {
     console.log(`[Raw] Connected to ${TS3_HOST}:${TS3_QUERY_PORT}`);
-    sendRaw(`login ${TS3_QUERY_USER} ${TS3_QUERY_PASS}`);
+    sendRaw(
+      `login ${escapeServerQueryValue(TS3_QUERY_USER)} ${escapeServerQueryValue(
+        TS3_QUERY_PASS,
+      )}`,
+    );
   });
   rawSocket.on("data", (chunk) => {
-    rawBuf += chunk.toString("utf8");
+    const str = chunk.toString("utf8");
+    if (DEBUG_RAW_TS3) {
+      console.log(`[Raw-DATA] ${JSON.stringify(str.slice(0, 500))}`);
+    }
+    rawBuf += str;
     let idx;
     while ((idx = rawBuf.indexOf("\n")) !== -1) {
       const line = rawBuf.slice(0, idx).replace(/\r$/, "").trim();
@@ -192,16 +391,32 @@ function startRawTextListener() {
     }
   });
   rawSocket.on("close", () => {
-    console.warn("[Raw] TCP closed. Reconnecting in 30s...");
+    const shouldReconnect = rawShouldReconnect && isConnected;
+    if (shouldReconnect) {
+      console.warn("[Raw] TCP closed. Reconnecting in 30s...");
+    }
     rawSocket = null;
-    rawBuf = "";
-    rawServerSelected = false;
-    rawEventsRegistered = false;
-    setTimeout(startRawTextListener, 30_000);
+    resetRawState();
+    if (shouldReconnect) {
+      rawReconnectTimer = setTimeout(startRawTextListener, 30_000);
+    }
   });
   rawSocket.on("error", (err) =>
     console.error("[Raw] TCP error:", err.message),
   );
+}
+
+function stopRawTextListener() {
+  rawShouldReconnect = false;
+  if (rawReconnectTimer) {
+    clearTimeout(rawReconnectTimer);
+    rawReconnectTimer = null;
+  }
+  if (rawSocket && !rawSocket.destroyed) {
+    rawSocket.destroy();
+  }
+  rawSocket = null;
+  resetRawState();
 }
 
 function sendRaw(cmd) {
@@ -210,20 +425,29 @@ function sendRaw(cmd) {
 }
 
 function handleRawLine(line) {
+  if (DEBUG_RAW_TS3 && line.startsWith("notify")) {
+    console.log(`[Raw-LINE] ${line.slice(0, 200)}`);
+  }
+
   if (line.startsWith("error id=0 msg=ok")) {
     if (!rawServerSelected) {
-      sendRaw("use port=9987");
+      sendRaw(buildRawUseCommand());
       rawServerSelected = true;
       return;
     }
     if (!rawEventsRegistered) {
       sendRaw("servernotifyregister event=textserver");
       sendRaw("servernotifyregister event=textchannel");
+      sendRaw("servernotifyregister event=textchannel id=0");
       sendRaw("servernotifyregister event=textprivate");
       rawEventsRegistered = true;
       console.log("[Raw] Text events registered on raw connection.");
       return;
     }
+    return;
+  }
+  if (line.startsWith("error id=")) {
+    console.warn(`[Raw] ServerQuery response: ${decodeServerQueryValue(line)}`);
     return;
   }
   if (line.startsWith("notifytextmessage")) {
@@ -232,13 +456,74 @@ function handleRawLine(line) {
   }
 }
 
-function parseAndHandleText(line) {
-  const params = {};
-  const re = /(\w+)=((?:"[^"]*")|(?:\S+))/g;
-  let m;
-  while ((m = re.exec(line)) !== null)
-    params[m[1]] = m[2].replace(/^"|"$/g, "");
+function parseCommandName(rawText) {
+  if (!rawText.startsWith(COMMAND_PREFIX)) return null;
 
+  const commandText = rawText.slice(COMMAND_PREFIX.length).trim();
+  if (!commandText) return null;
+
+  return commandText.split(/\s+/, 1)[0].toLowerCase();
+}
+
+function sanitizeDiscordText(text) {
+  return String(text)
+    .replace(/@/g, "@\u200b")
+    .replace(/\[b\]/gi, "**")
+    .replace(/\[\/b\]/gi, "**")
+    .replace(/\[i\]/gi, "*")
+    .replace(/\[\/i\]/gi, "*")
+    .replace(/\[u\]/gi, "__")
+    .replace(/\[\/u\]/gi, "__")
+    .replace(/```/g, "`\u200b``");
+}
+
+function truncateDiscordMessage(content) {
+  if (content.length <= 1950) return content;
+  return `${content.slice(0, 1947)}...`;
+}
+
+async function mirrorCommandResultToDiscord(commandName, text, reply, invokerNick) {
+  if (!MIRROR_COMMAND_RESULTS || commandName === "help") return;
+
+  const discordMsg = [
+    `**${sanitizeDiscordText(invokerNick)}** used \`${sanitizeDiscordText(text)}\` in TeamSpeak`,
+    "",
+    sanitizeDiscordText(reply),
+  ].join("\n");
+
+  await postWebhook(truncateDiscordMessage(discordMsg)).catch((e) =>
+    console.error("[Raw] Discord error:", e.message),
+  );
+}
+
+async function sendTeamSpeakReply(invokerClid, targetmode, reply) {
+  if (!ts3) throw new Error("TS3 connection is not ready");
+
+  if (targetmode === 1) {
+    await ts3.sendTextMessage(invokerClid, 1, reply);
+    return `private:${invokerClid}`;
+  }
+
+  if (targetmode === 3) {
+    await ts3.sendTextMessage("0", 3, reply);
+    return "server";
+  }
+
+  const info = await ts3.clientInfo(invokerClid).catch(() => null);
+  const channelId =
+    info && (info.cid || info.channelId || info.clientChannelId);
+
+  if (channelId) {
+    await ts3.sendTextMessage(channelId, 2, reply);
+    return `channel:${channelId}`;
+  }
+
+  await ts3.sendTextMessage(invokerClid, 1, reply);
+  return `private:${invokerClid}`;
+}
+
+function parseAndHandleText(line) {
+  const params = parseServerQueryParams(line);
   const text = (params.msg || "").trim();
   if (!text) return;
 
@@ -253,41 +538,14 @@ function parseAndHandleText(line) {
 
   (async () => {
     try {
+      const commandName = parseCommandName(text);
       const reply = await handleMessage(text, invokerUid, invokerNick);
       if (!reply) return;
 
-      let targetId, replyMode;
-      if (targetmode === 1) {
-        targetId = invokerClid;
-        replyMode = 1;
-      } else {
-        const info = await ts3.clientInfo(invokerClid).catch(() => null);
-        targetId = info ? info.cid || info.channelId : null;
-        replyMode = 2;
-      }
+      const target = await sendTeamSpeakReply(invokerClid, targetmode, reply);
+      console.log(`[Raw] Response sent (${target})`);
 
-      if (targetId) {
-        await ts3.sendTextMessage(targetId, replyMode, reply);
-        console.log(`[Raw] Response sent (target ${targetId})`);
-      } else {
-        await ts3.sendTextMessage(invokerClid, 1, reply);
-      }
-
-      const discordMsg = [
-        `📥 **${invokerNick}** used command in TS3:`,
-        "```",
-        text,
-        "```",
-        "**Result:**",
-        "```",
-        reply,
-        "```",
-      ].join("\n");
-      await postWebhook(
-        discordMsg.length > 1950
-          ? discordMsg.slice(0, 1950) + "..."
-          : discordMsg,
-      ).catch((e) => console.error("[Raw] Discord error:", e.message));
+      await mirrorCommandResultToDiscord(commandName, text, reply, invokerNick);
     } catch (e) {
       console.error("[Raw] Handler error:", e.message);
     }
@@ -297,21 +555,64 @@ function parseAndHandleText(line) {
 // ---------------------------------------------------------------------------
 // TS3 Connection
 // ---------------------------------------------------------------------------
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+function scheduleReconnect(delayMs = 15_000) {
+  if (reconnectTimer) return;
+
+  console.log(`[TS3] Retrying in ${delayMs / 1000}s...`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectTS3();
+  }, delayMs);
+}
+
+function handleConnectionLost(reason) {
+  if (!isConnected && reconnectTimer) return;
+
+  isConnected = false;
+  stopPolling();
+  stopRawTextListener();
+  console.warn(`[TS3] Connection lost${reason ? `: ${reason}` : ""}`);
+  scheduleReconnect();
+}
+
 async function connectTS3() {
   console.log(`[TS3] Connecting to ${TS3_HOST}:${TS3_QUERY_PORT} ...`);
 
   try {
+    await checkTcpReachable(
+      TS3_HOST,
+      TS3_QUERY_PORT,
+      TS3_CONNECT_TIMEOUT_MS,
+    );
+
     // TeamSpeak.connect handles login + virtual server select internally
     ts3 = await TeamSpeak.connect({
       host: TS3_HOST,
       queryport: TS3_QUERY_PORT,
-      serverport: 9987,
+      serverport: TS3_SERVER_PORT,
       username: TS3_QUERY_USER,
       password: TS3_QUERY_PASS,
       nickname: TS3_BOT_NICK,
       protocol: "raw",
-      keepAlive: false, // temp disable to test if keepalive blocks events
+      keepAlive: true,
+      readyTimeout: TS3_CONNECT_TIMEOUT_MS,
     });
+
+    if (TS3_SERVER_ID && typeof ts3.useBySid === "function") {
+      await ts3.useBySid(TS3_SERVER_ID);
+    }
+
+    ts3.on("close", () => handleConnectionLost("socket closed"));
+    ts3.on("error", (err) =>
+      console.error("[TS3] Connection error:", err.message),
+    );
 
     isConnected = true;
     console.log("[TS3] Connected and authenticated.");
@@ -323,12 +624,13 @@ async function connectTS3() {
     startRawTextListener();
 
     // Start the polling loop
-    startPolling();
+    await startPolling();
   } catch (err) {
     isConnected = false;
+    stopPolling();
+    stopRawTextListener();
     console.error("[TS3] Connection failed:", err.message);
-    console.log("[TS3] Retrying in 15s...");
-    setTimeout(connectTS3, 15_000);
+    scheduleReconnect();
   }
 }
 
@@ -336,6 +638,7 @@ async function connectTS3() {
 // Polling loop — snapshot all online clients every POLL_MS milliseconds
 // ---------------------------------------------------------------------------
 async function startPolling() {
+  stopPolling();
   console.log(`[Tracker] Polling every ${POLL_MS / 1000}s`);
 
   const poll = async () => {
@@ -406,6 +709,14 @@ cron.schedule("0 0 1 * *", async () => {
 console.log("===================================================");
 console.log("   UC Stats Tracking Bot for TeamSpeak 3");
 console.log(`   Connecting to : ${TS3_HOST}:${TS3_QUERY_PORT}`);
+if (ts3Address.portFromHost) {
+  console.log(
+    `   Parsed TS3_HOST : host=${TS3_HOST}, query_port=${TS3_QUERY_PORT}`,
+  );
+}
+console.log(
+  `   Virtual server: sid=${TS3_SERVER_ID}, voice_port=${TS3_SERVER_PORT}`,
+);
 console.log(`   Web Dashboard : http://localhost:${WEB_PORT}`);
 console.log("===================================================");
 

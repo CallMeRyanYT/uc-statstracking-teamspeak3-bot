@@ -80,9 +80,22 @@
       background: linear-gradient(135deg, var(--accent), var(--accent2));
       border-radius: 12px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 22px;
       box-shadow: 0 0 24px rgba(99,120,255,0.4);
       flex-shrink: 0;
+    }
+
+    .svg-icon {
+      width: var(--icon-size, 1em);
+      height: var(--icon-size, 1em);
+      display: inline-block;
+      flex-shrink: 0;
+      fill: currentColor;
+      vertical-align: -0.14em;
+    }
+
+    .logo-icon .svg-icon {
+      --icon-size: 24px;
+      color: #fff;
     }
 
     .logo-text h1 {
@@ -155,12 +168,17 @@
       cursor: pointer;
       transition: all 0.2s;
       font-family: 'Outfit', sans-serif;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
     }
 
     #refresh-btn:hover {
       border-color: var(--accent);
       color: var(--accent);
     }
+
+    #refresh-btn .svg-icon { --icon-size: 0.95rem; }
 
     /* ── Stat Cards Row ─────────────────────────────────────────────────── */
     .stats-row {
@@ -186,7 +204,8 @@
       transform: translateY(-2px);
     }
 
-    .stat-card .icon { font-size: 1.5rem; }
+    .stat-card .icon { color: var(--accent2); }
+    .stat-card .icon .svg-icon { --icon-size: 1.5rem; }
     .stat-card .label { font-size: 0.75rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
     .stat-card .value { font-size: 1.6rem; font-weight: 700; color: var(--text-1); line-height: 1; }
     .stat-card .sub { font-size: 0.75rem; color: var(--text-2); }
@@ -291,6 +310,16 @@
       text-align: center;
     }
 
+    .rank-medal {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+    }
+
+    .rank-medal .svg-icon { --icon-size: 24px; }
+
     .rank-1 { color: var(--gold); }
     .rank-2 { color: var(--silver); }
     .rank-3 { color: var(--bronze); }
@@ -336,6 +365,7 @@
     .badge-online { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
     .badge-afk    { background: rgba(251,191,36,0.12);  color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
     .badge-offline{ background: rgba(139,146,184,0.1);  color: var(--text-3); border: 1px solid var(--border); }
+    .badge .svg-icon { --icon-size: 0.78rem; }
 
     /* ── Online Sidebar ─────────────────────────────────────────────────── */
     .online-list { padding: 0; list-style: none; }
@@ -369,13 +399,78 @@
     .online-detail { font-size: 0.7rem; color: var(--text-3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .online-time { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent2); flex-shrink: 0; }
 
+    .sidebar-stack { display: flex; flex-direction: column; gap: 16px; }
+
+    .compact-list { list-style: none; padding: 0; }
+
+    .compact-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: 12px 18px;
+      border-bottom: 1px solid rgba(99, 120, 255, 0.06);
+      align-items: center;
+    }
+
+    .compact-row:last-child { border-bottom: none; }
+    .compact-primary { font-size: 0.84rem; font-weight: 600; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .compact-secondary { font-size: 0.7rem; color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .compact-value { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent2); white-space: nowrap; }
+
+    .activity-type {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(99, 120, 255, 0.12);
+      color: var(--accent2);
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+
+    .activity-type .svg-icon { --icon-size: 0.95rem; }
+
+    .activity-row {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .command-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 14px 18px 18px;
+    }
+
+    .command-chip {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-2);
+      background: rgba(99, 120, 255, 0.04);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .empty-state {
       text-align: center;
       padding: 40px 20px;
       color: var(--text-3);
       font-size: 0.85rem;
     }
-    .empty-state .icon { font-size: 2rem; margin-bottom: 10px; }
+    .empty-state .icon {
+      display: flex;
+      justify-content: center;
+      color: var(--accent2);
+      margin-bottom: 10px;
+    }
+    .empty-state .icon .svg-icon { --icon-size: 2rem; }
 
     /* ── User Detail Modal ──────────────────────────────────────────────── */
     .modal-overlay {
@@ -425,14 +520,17 @@
       background: transparent;
       border: none;
       color: var(--text-3);
-      font-size: 1.4rem;
       cursor: pointer;
       line-height: 1;
       padding: 4px;
       transition: color 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .modal-close:hover { color: var(--text-1); }
+    .modal-close .svg-icon { --icon-size: 1.3rem; }
 
     .modal-body { padding: 22px 24px; }
 
@@ -545,15 +643,62 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 3px; }
-  </style>
+</style>
 </head>
 <body>
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="icon-radio" viewBox="0 0 24 24">
+    <path d="M12 14a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-1 2h2v6h-2v-6ZM5.3 18.7a9.5 9.5 0 0 1 0-13.4l1.4 1.4a7.5 7.5 0 0 0 0 10.6l-1.4 1.4Zm13.4 0-1.4-1.4a7.5 7.5 0 0 0 0-10.6l1.4-1.4a9.5 9.5 0 0 1 0 13.4ZM2.5 21.5a15 15 0 0 1 0-19l1.4 1.4a13 13 0 0 0 0 16.2l-1.4 1.4Zm19 0-1.4-1.4a13 13 0 0 0 0-16.2l1.4-1.4a15 15 0 0 1 0 19Z"/>
+  </symbol>
+  <symbol id="icon-refresh" viewBox="0 0 24 24">
+    <path d="M20 5v6h-6l2.35-2.35A6.5 6.5 0 1 0 18.5 14h2a8.5 8.5 0 1 1-2.74-6.24L20 5Z"/>
+  </symbol>
+  <symbol id="icon-users" viewBox="0 0 24 24">
+    <path d="M8 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm8.5-.5a3.25 3.25 0 1 1 0-6.5 3.25 3.25 0 0 1 0 6.5ZM2 20a6 6 0 0 1 12 0v1H2v-1Zm12.6 1a7.78 7.78 0 0 0-2.1-5.25A5.2 5.2 0 0 1 22 18.7V21h-7.4Z"/>
+  </symbol>
+  <symbol id="icon-status" viewBox="0 0 24 24">
+    <path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Zm0-4.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11Z"/>
+  </symbol>
+  <symbol id="icon-clock" viewBox="0 0 24 24">
+    <path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Zm1-10.4V6h-2v7l5 3 1-1.7-4-2.7Z"/>
+  </symbol>
+  <symbol id="icon-sessions" viewBox="0 0 24 24">
+    <path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-5v2h3v2H6v-2h3v-2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2v9h16V6H4Z"/>
+  </symbol>
+  <symbol id="icon-trophy" viewBox="0 0 24 24">
+    <path d="M7 4V2h10v2h4v3a6 6 0 0 1-5.2 5.95A6.02 6.02 0 0 1 13 15.92V19h4v2H7v-2h4v-3.08a6.02 6.02 0 0 1-2.8-2.97A6 6 0 0 1 3 7V4h4Zm0 2H5v1a4 4 0 0 0 2.42 3.67A6.07 6.07 0 0 1 7 8.5V6Zm10 0v2.5c0 .75-.14 1.48-.4 2.17A4 4 0 0 0 19 7V6h-2ZM9 4v4.5a3 3 0 0 0 6 0V4H9Z"/>
+  </symbol>
+  <symbol id="icon-medal" viewBox="0 0 24 24">
+    <path d="m7 2 3 5h4l3-5h3l-4 6.7A6.5 6.5 0 1 1 8 8.7L4 2h3Zm5 18a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z"/>
+  </symbol>
+  <symbol id="icon-moon" viewBox="0 0 24 24">
+    <path d="M21 14.6A8.8 8.8 0 0 1 9.4 3a9 9 0 1 0 11.6 11.6Z"/>
+  </symbol>
+  <symbol id="icon-compass" viewBox="0 0 24 24">
+    <path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Zm4.8-14.8-6.4 2.4-2.4 6.4 6.4-2.4 2.4-6.4ZM12 13.2A1.2 1.2 0 1 1 12 10.8a1.2 1.2 0 0 1 0 2.4Z"/>
+  </symbol>
+  <symbol id="icon-close" viewBox="0 0 24 24">
+    <path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Zm12.6 1.4L6.4 19 5 17.6 17.6 5 19 6.4Z"/>
+  </symbol>
+  <symbol id="icon-warning" viewBox="0 0 24 24">
+    <path d="M12 2 22 20H2L12 2Zm0 5-6.6 11h13.2L12 7Zm-1 3h2v4h-2v-4Zm0 5h2v2h-2v-2Z"/>
+  </symbol>
+  <symbol id="icon-arrow-up-right" viewBox="0 0 24 24">
+    <path d="M7 5h12v12h-2V8.4L6.4 19 5 17.6 15.6 7H7V5Z"/>
+  </symbol>
+  <symbol id="icon-arrow-down-right" viewBox="0 0 24 24">
+    <path d="M17 16.6V8h2v12H7v-2h8.6L5 7.4 6.4 6 17 16.6Z"/>
+  </symbol>
+  <symbol id="icon-move" viewBox="0 0 24 24">
+    <path d="M7 5h10l-3-3h3.2L22 6.8l-4.8 4.8H14l3-3H7V5Zm10 14H7l3 3H6.8L2 17.2l4.8-4.8H10l-3 3h10V19Z"/>
+  </symbol>
+</svg>
 <div class="page">
 
   <!-- ── Header ─────────────────────────────────────────────────────────── -->
   <header>
     <div class="logo">
-      <div class="logo-icon">📡</div>
+      <div class="logo-icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-radio"></use></svg></div>
       <div class="logo-text">
         <h1>UC Stats Tracker</h1>
         <p>TeamSpeak 3 Activity Monitoring</p>
@@ -564,29 +709,29 @@
         <div class="status-dot"></div>
         <span id="bot-status-text">Connecting…</span>
       </div>
-      <button id="refresh-btn" onclick="refreshAll()">⟳ Refresh</button>
+      <button id="refresh-btn" onclick="refreshAll()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg> Refresh</button>
     </div>
   </header>
 
   <!-- ── Server stat cards ──────────────────────────────────────────────── -->
   <div class="stats-row" id="stats-row">
     <div class="stat-card">
-      <div class="icon">👥</div>
+      <div class="icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-users"></use></svg></div>
       <div class="label">Total Players</div>
       <div class="value" id="sc-users">—</div>
     </div>
     <div class="stat-card">
-      <div class="icon">🟢</div>
+      <div class="icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-status"></use></svg></div>
       <div class="label">Online Now</div>
       <div class="value" id="sc-online">—</div>
     </div>
     <div class="stat-card">
-      <div class="icon">⏱</div>
+      <div class="icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-clock"></use></svg></div>
       <div class="label">Total Hours Tracked</div>
       <div class="value" id="sc-hours">—</div>
     </div>
     <div class="stat-card">
-      <div class="icon">🎮</div>
+      <div class="icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-sessions"></use></svg></div>
       <div class="label">Total Sessions</div>
       <div class="value" id="sc-sessions">—</div>
     </div>
@@ -598,7 +743,7 @@
     <!-- Leaderboard -->
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">🏆 Leaderboard</div>
+        <div class="panel-title"><svg class="svg-icon" aria-hidden="true"><use href="#icon-trophy"></use></svg> Leaderboard</div>
         <div class="tab-bar">
           <button class="tab-btn active" onclick="switchTab('total', this)">All-Time</button>
           <button class="tab-btn" onclick="switchTab('daily', this)">Today</button>
@@ -623,17 +768,47 @@
     </div>
 
     <!-- Right sidebar -->
-    <div style="display:flex; flex-direction:column; gap:16px;">
+    <div class="sidebar-stack">
 
       <!-- Online now -->
       <div class="panel">
         <div class="panel-header">
-          <div class="panel-title">🟢 Online Now</div>
+          <div class="panel-title"><svg class="svg-icon" aria-hidden="true"><use href="#icon-status"></use></svg> Online Now</div>
           <span style="font-size:0.75rem;color:var(--text-3)" id="online-count">0 users</span>
         </div>
         <ul class="online-list" id="online-list">
-          <li class="empty-state"><div class="icon">😴</div>Nobody online</li>
+          <li class="empty-state"><div class="icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-moon"></use></svg></div>Nobody online</li>
         </ul>
+      </div>
+
+      <!-- Top channels -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><svg class="svg-icon" aria-hidden="true"><use href="#icon-radio"></use></svg> Top Channels</div>
+          <span style="font-size:0.75rem;color:var(--text-3)" id="channel-total">0 tracked</span>
+        </div>
+        <ul class="compact-list" id="channel-list">
+          <li class="empty-state"><div class="icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-radio"></use></svg></div>No channel data yet</li>
+        </ul>
+      </div>
+
+      <!-- Recent activity -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><svg class="svg-icon" aria-hidden="true"><use href="#icon-compass"></use></svg> Recent Activity</div>
+          <span style="font-size:0.75rem;color:var(--text-3)" id="activity-count">0 events</span>
+        </div>
+        <ul class="compact-list" id="activity-list">
+          <li class="empty-state"><div class="icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-compass"></use></svg></div>No recent events</li>
+        </ul>
+      </div>
+
+      <!-- Commands -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title"># Commands</div>
+        </div>
+        <div class="command-grid" id="command-grid"></div>
       </div>
 
     </div>
@@ -657,7 +832,7 @@
           <div id="modal-badge" style="margin-top:4px"></div>
         </div>
       </div>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="Close"><svg class="svg-icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
     <div class="modal-body" id="modal-body">
       <div class="modal-grid" id="modal-grid"></div>
@@ -689,35 +864,49 @@
     });
   }
 
+  function svgIcon(name) {
+    return `<svg class="svg-icon" aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
+  }
+
   function rankLabel(i) {
-    return ['🥇','🥈','🥉'][i] || `#${i+1}`;
+    if (i < 3) return `<span class="rank-medal">${svgIcon('medal')}</span>`;
+    return `#${i+1}`;
   }
 
   function statusBadge(row) {
     if (!row.is_online) return `<span class="badge badge-offline">Offline</span>`;
-    if (row.is_afk)     return `<span class="badge badge-afk">🟡 AFK</span>`;
-    return `<span class="badge badge-online">🟢 Online</span>`;
+    if (row.is_afk)     return `<span class="badge badge-afk">${svgIcon('clock')} AFK</span>`;
+    return `<span class="badge badge-online">${svgIcon('status')} Online</span>`;
   }
 
   // ── State ─────────────────────────────────────────────────────────────────
   let allUsers = [];
   let currentTab = 'total';
+  let hoursPerTick = 1 / 60;
   const timeKeys = { total: 'total_time', daily: 'daily_time', weekly: 'weekly_time', monthly: 'monthly_time' };
+  const commandList = ['#help', '#stats', '#rank', '#top', '#today', '#week', '#month', '#online', '#session', '#peak', '#channels', '#history', '#afk', '#server'];
 
   // ── Fetch & Render ────────────────────────────────────────────────────────
   async function fetchAll() {
-    const [lb, online, server] = await Promise.all([
+    const [lb, online, server, channels, activity, health] = await Promise.all([
       fetch('/api/leaderboard').then(r=>r.json()).catch(()=>[]),
       fetch('/api/online').then(r=>r.json()).catch(()=>[]),
       fetch('/api/server').then(r=>r.json()).catch(()=>({})),
+      fetch('/api/channels').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/activity').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/health').then(r=>r.json()).catch(()=>({})),
     ]);
+    hoursPerTick = (health.poll_interval_ms || 60000) / 3600000;
     allUsers = lb;
     renderLeaderboard();
     renderOnline(online);
-    renderServerStats(server, online);
+    renderServerStats(server, online, health);
+    renderChannels(channels);
+    renderActivity(activity);
+    renderCommands();
   }
 
-  function renderServerStats(s, online) {
+  function renderServerStats(s, online, health) {
     document.getElementById('sc-users').textContent   = s.users || 0;
     document.getElementById('sc-online').textContent  = online.length || 0;
     document.getElementById('sc-hours').textContent   = fmtHours(s.total_hours || 0);
@@ -730,7 +919,7 @@
       txt.textContent = 'Bot Connected';
     } else {
       pill.classList.add('offline');
-      txt.textContent = 'Bot Offline';
+      txt.textContent = health.ts3_query_port ? `TS3 Offline :${health.ts3_query_port}` : 'Bot Offline';
     }
   }
 
@@ -775,7 +964,7 @@
     document.getElementById('online-count').textContent = `${users.length} user${users.length !== 1 ? 's' : ''}`;
 
     if (!users.length) {
-      list.innerHTML = `<li class="empty-state"><div class="icon">😴</div>Nobody online</li>`;
+      list.innerHTML = `<li class="empty-state"><div class="icon">${svgIcon('moon')}</div>Nobody online</li>`;
       return;
     }
 
@@ -788,6 +977,58 @@
         </div>
         <div class="online-time">${fmtHours(u.sessionHours)}</div>
       </li>`).join('');
+  }
+
+  function renderChannels(channels) {
+    const list = document.getElementById('channel-list');
+    document.getElementById('channel-total').textContent = `${channels.length} tracked`;
+
+    if (!channels.length) {
+      list.innerHTML = `<li class="empty-state"><div class="icon">${svgIcon('radio')}</div>No channel data yet</li>`;
+      return;
+    }
+
+    list.innerHTML = channels.slice(0, 6).map(ch => `
+      <li class="compact-row">
+        <div>
+          <div class="compact-primary">${esc(ch.channel_name || 'Unknown channel')}</div>
+          <div class="compact-secondary">${ch.user_count || 0} user${ch.user_count === 1 ? '' : 's'} • ${ch.visit_count || 0} visits</div>
+        </div>
+        <div class="compact-value">${fmtHours(ch.total_time || 0)}</div>
+      </li>`).join('');
+  }
+
+  function activityIcon(type) {
+    if (type === 'join') return svgIcon('arrow-up-right');
+    if (type === 'leave') return svgIcon('arrow-down-right');
+    if (type === 'move') return svgIcon('move');
+    return svgIcon('status');
+  }
+
+  function renderActivity(events) {
+    const list = document.getElementById('activity-list');
+    document.getElementById('activity-count').textContent = `${events.length} event${events.length === 1 ? '' : 's'}`;
+
+    if (!events.length) {
+      list.innerHTML = `<li class="empty-state"><div class="icon">${svgIcon('compass')}</div>No recent events</li>`;
+      return;
+    }
+
+    list.innerHTML = events.slice(0, 8).map(ev => `
+      <li class="compact-row activity-row">
+        <div class="activity-type">${activityIcon(ev.event_type)}</div>
+        <div>
+          <div class="compact-primary">${esc(ev.username)} ${esc(ev.event_type || 'activity')}</div>
+          <div class="compact-secondary">${esc(ev.channel_name || 'Server')} • ${fmtDate(ev.timestamp)}</div>
+        </div>
+      </li>`).join('');
+  }
+
+  function renderCommands() {
+    const grid = document.getElementById('command-grid');
+    if (grid.dataset.rendered) return;
+    grid.dataset.rendered = 'true';
+    grid.innerHTML = commandList.map(cmd => `<div class="command-chip">${cmd}</div>`).join('');
   }
 
   // ── Tab switching ─────────────────────────────────────────────────────────
@@ -836,7 +1077,7 @@
         const bg = t > 0
           ? `linear-gradient(135deg, rgba(99,120,255,${0.15 + intensity/100*0.85}), rgba(167,139,250,${0.1 + intensity/100*0.5}))`
           : 'var(--border)';
-        return `<div class="heatmap-cell" data-tip="${i}:00 – ${i+1 < 10 ? '0':''}${i+1}:00 (${fmtHours(t/60)})" style="background:${bg}"></div>`;
+        return `<div class="heatmap-cell" data-tip="${i}:00 – ${i+1 < 10 ? '0':''}${i+1}:00 (${fmtHours(t * hoursPerTick)})" style="background:${bg}"></div>`;
       }).join('');
       document.getElementById('heatmap-labels').innerHTML = Array.from({length:24},(_,i) =>
         `<div class="heatmap-label">${i % 6 === 0 ? i+'h' : ''}</div>`).join('');
@@ -861,7 +1102,7 @@
 
     } catch (e) {
       document.getElementById('modal-body').innerHTML =
-        `<div class="empty-state"><div class="icon">⚠️</div>Could not load user data.</div>`;
+        `<div class="empty-state"><div class="icon">${svgIcon('warning')}</div>Could not load user data.</div>`;
     }
   }
 
@@ -881,9 +1122,9 @@
   // ── Refresh ───────────────────────────────────────────────────────────────
   function refreshAll() {
     const btn = document.getElementById('refresh-btn');
-    btn.textContent = '⟳ …';
+    btn.innerHTML = `${svgIcon('refresh')} Loading...`;
     fetchAll().finally(() => {
-      btn.textContent = '⟳ Refresh';
+      btn.innerHTML = `${svgIcon('refresh')} Refresh`;
       document.getElementById('last-refresh-text').textContent =
         `Last refresh: ${new Date().toLocaleTimeString()} — Auto-refreshes every 30s`;
     });
