@@ -194,52 +194,48 @@ async function connectTS3() {
     try {
       const serverInfo = await ts3.serverInfo();
       console.log(
-        `[TS3] Virtual server: "${serverInfo.virtualserverName}" (${serverInfo.virtualserverClientsonline} online)`,
+        `[TS3] Virtual server: "${serverInfo.virtualserverName}" (port ${serverInfo.virtualserverPort}, ${serverInfo.virtualserverClientsonline} online)`,
       );
     } catch (e) {
       console.warn("[TS3] Could not query server info:", e.message);
-    }
-
-    // Register for text message events using v3 event names
-    // textserver  = server-wide chat messages
-    // textprivate = private messages to the bot
-    // textchannel = channel chat messages (id=0 means all channels)
-    console.log("[TS3] Registering text event listeners...");
-    try {
-      await ts3.registerEvent("textserver");
-      await ts3.registerEvent("textprivate");
-      await ts3.registerEvent("textchannel", 0);
-      console.log("[TS3] Text event listeners registered successfully.");
-    } catch (e) {
-      console.error("[TS3] Failed to register text events:", e.message);
-    }
-
-    // ── DEBUG: log ALL incoming events to find the right property names ──────
-    const origEmit = ts3.emit.bind(ts3);
-    ts3.emit = function (eventName, ...args) {
-      if (eventName !== "keepalive" && eventName !== "flooding") {
-        const preview = JSON.stringify(args[0])
-          ?.slice(0, 300)
-          ?.replace(/\n/g, "\\n");
-        console.log(`[DEBUG] Event: "${eventName}" → ${preview}`);
+      // Try to select virtual server by port as fallback
+      try {
+        await ts3.useByPort(9987);
+        console.log("[TS3] Selected virtual server by port 9987.");
+      } catch (e2) {
+        console.warn("[TS3] Could not select virtual server:", e2.message);
       }
-      return origEmit(eventName, ...args);
-    };
-    // ─────────────────────────────────────────────────────────────────────────
+    }
 
-    // Also listen on alternative event names the library might use
-    ts3.on("textMessage", (data) =>
+    // Register for ALL server events in one call (v3 standard approach)
+    // "server" enables: text messages, client joins/leaves, channel changes, etc.
+    console.log("[TS3] Registering for server events...");
+    try {
+      await ts3.registerEvent("server");
+      console.log("[TS3] Server events registered successfully.");
+    } catch (e) {
+      console.error("[TS3] Failed to register events:", e.message);
+    }
+
+    // ── DEBUG: catch-all event listeners ────────────────────────────────────
+    // Listen on every possible text-event name the library might emit
+    for (const evName of ["textmessage", "textMessage", "textmsg", "chat"]) {
+      ts3.on(evName, (data) => {
+        console.log(
+          `[DEBUG] Event "${evName}" fired! Keys:`,
+          Object.keys(data || {}).join(", "),
+        );
+        console.log(`[DEBUG] Raw data:`, JSON.stringify(data).slice(0, 500));
+      });
+    }
+    // Also try listening for the raw notifytextmessage
+    ts3.on("notifytextmessage", (data) => {
       console.log(
-        "[DEBUG] Alt-event textMessage:",
-        JSON.stringify(data).slice(0, 400),
-      ),
-    );
-    ts3.on("chat", (data) =>
-      console.log(
-        "[DEBUG] Alt-event chat:",
-        JSON.stringify(data).slice(0, 400),
-      ),
-    );
+        "[DEBUG] Raw notifytextmessage:",
+        JSON.stringify(data).slice(0, 500),
+      );
+    });
+    // ─────────────────────────────────────────────────────────────────────────
 
     ts3.on("textmessage", async (event) => {
       // Dump full event structure on first message received
