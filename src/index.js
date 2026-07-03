@@ -8,6 +8,7 @@
 
 require("dotenv").config();
 const { TeamSpeak } = require("ts3-nodejs-library");
+const net = require("net");
 const cron = require("node-cron");
 const express = require("express");
 const path = require("path");
@@ -165,6 +166,134 @@ app.listen(WEB_PORT, () => {
   console.log(`[Web] Dashboard running at http://localhost:${WEB_PORT}`);
 });
 
+// =========================================================================
+// Raw TCP text listener - bypasses broken library event system
+// =========================================================================
+let rawSocket = null;
+let rawBuf = "";
+let rawServerSelected = false;
+let rawEventsRegistered = false;
+
+function startRawTextListener() {
+  console.log("[Raw] Starting raw TCP text listener...");
+  rawSocket = new net.Socket();
+  rawSocket.connect(TS3_QUERY_PORT, TS3_HOST, () => {
+    console.log(`[Raw] Connected to ${TS3_HOST}:${TS3_QUERY_PORT}`);
+    sendRaw(`login ${TS3_QUERY_USER} ${TS3_QUERY_PASS}`);
+  });
+  rawSocket.on("data", (chunk) => {
+    rawBuf += chunk.toString("utf8");
+    let idx;
+    while ((idx = rawBuf.indexOf("\n")) !== -1) {
+      const line = rawBuf.slice(0, idx).replace(/\r$/, "").trim();
+      rawBuf = rawBuf.slice(idx + 1);
+      if (!line) continue;
+      handleRawLine(line);
+    }
+  });
+  rawSocket.on("close", () => {
+    console.warn("[Raw] TCP closed. Reconnecting in 30s...");
+    rawSocket = null;
+    rawBuf = "";
+    rawServerSelected = false;
+    rawEventsRegistered = false;
+    setTimeout(startRawTextListener, 30_000);
+  });
+  rawSocket.on("error", (err) =>
+    console.error("[Raw] TCP error:", err.message),
+  );
+}
+
+function sendRaw(cmd) {
+  if (!rawSocket || rawSocket.destroyed) return;
+  rawSocket.write(cmd + "\n");
+}
+
+function handleRawLine(line) {
+  if (line.startsWith("error id=0 msg=ok")) {
+    if (!rawServerSelected) {
+      sendRaw("use port=9987");
+      rawServerSelected = true;
+      return;
+    }
+    if (!rawEventsRegistered) {
+      sendRaw("servernotifyregister event=textserver");
+      sendRaw("servernotifyregister event=textchannel");
+      sendRaw("servernotifyregister event=textprivate");
+      rawEventsRegistered = true;
+      console.log("[Raw] Text events registered on raw connection.");
+      return;
+    }
+    return;
+  }
+  if (line.startsWith("notifytextmessage")) {
+    parseAndHandleText(line);
+    return;
+  }
+}
+
+function parseAndHandleText(line) {
+  const params = {};
+  const re = /(\w+)=((?:"[^"]*")|(?:\S+))/g;
+  let m;
+  while ((m = re.exec(line)) !== null)
+    params[m[1]] = m[2].replace(/^"|"$/g, "");
+
+  const text = (params.msg || "").trim();
+  if (!text) return;
+
+  const invokerClid = parseInt(params.invokerid) || 0;
+  const invokerUid = params.invokeruid || "";
+  const invokerNick = params.invokername || "Unknown";
+  const targetmode = parseInt(params.targetmode) || 2;
+
+  if (!invokerClid || !invokerUid) return;
+
+  console.log(`[Raw] Message from ${invokerNick}: ${text.slice(0, 100)}`);
+
+  (async () => {
+    try {
+      const reply = await handleMessage(text, invokerUid, invokerNick);
+      if (!reply) return;
+
+      let targetId, replyMode;
+      if (targetmode === 1) {
+        targetId = invokerClid;
+        replyMode = 1;
+      } else {
+        const info = await ts3.clientInfo(invokerClid).catch(() => null);
+        targetId = info ? info.cid || info.channelId : null;
+        replyMode = 2;
+      }
+
+      if (targetId) {
+        await ts3.sendTextMessage(targetId, replyMode, reply);
+        console.log(`[Raw] Response sent (target ${targetId})`);
+      } else {
+        await ts3.sendTextMessage(invokerClid, 1, reply);
+      }
+
+      const discordMsg = [
+        `📥 **${invokerNick}** used command in TS3:`,
+        "```",
+        text,
+        "```",
+        "**Result:**",
+        "```",
+        reply,
+        "```",
+      ].join("\n");
+      await postWebhook(
+        discordMsg.length > 1950
+          ? discordMsg.slice(0, 1950) + "..."
+          : discordMsg,
+      ).catch((e) => console.error("[Raw] Discord error:", e.message));
+    } catch (e) {
+      console.error("[Raw] Handler error:", e.message);
+    }
+  })();
+}
+
 // ---------------------------------------------------------------------------
 // TS3 Connection
 // ---------------------------------------------------------------------------
@@ -190,250 +319,8 @@ async function connectTS3() {
     // Monitoring is global — all voice clients across the entire server are tracked.
     console.log("[TS3] Monitoring all channels (global tracking).");
 
-    // Explicitly select the virtual server (in case connect didn't do it)
-    try {
-      const serverInfo = await ts3.serverInfo();
-      console.log(
-        `[TS3] Virtual server: "${serverInfo.virtualserverName}" (port ${serverInfo.virtualserverPort}, ${serverInfo.virtualserverClientsonline} online)`,
-      );
-    } catch (e) {
-      console.warn("[TS3] Could not query server info:", e.message);
-      // Try to select virtual server by port as fallback
-      try {
-        await ts3.useByPort(9987);
-        console.log("[TS3] Selected virtual server by port 9987.");
-      } catch (e2) {
-        console.warn("[TS3] Could not select virtual server:", e2.message);
-      }
-    }
-
-    // ── Explicit server selection ─────────────────────────────────────────
-    // The connect() call should select the server automatically, but let's
-    // make absolutely sure we're on the right virtual server before registering.
-    const sid = parseInt(process.env.TS3_SERVER_ID) || 1;
-    try {
-      await ts3.useBySid(sid);
-      console.log(`[TS3] Selected virtual server ID ${sid}.`);
-    } catch (e) {
-      console.warn(
-        `[TS3] useBySid(${sid}) failed, trying useByPort(9987):`,
-        e.message,
-      );
-      await ts3.useByPort(9987);
-      console.log("[TS3] Selected virtual server by port 9987.");
-    }
-
-    // ── STEP 1: Register for server events ─────────────────────────────────
-    console.log("[TS3] Registering for server events...");
-    try {
-      const regRes = await ts3.registerEvent("server");
-      console.log(
-        "[TS3] registerEvent returned:",
-        JSON.stringify(regRes).slice(0, 300),
-      );
-    } catch (e) {
-      console.error("[TS3] Failed to register events:", e.message);
-    }
-
-    // ── STEP 2: Also try text-specific registration ───────────────────────
-    try {
-      await ts3.registerEvent("textserver");
-      await ts3.registerEvent("textprivate");
-      await ts3.registerEvent("textchannel", 0);
-      console.log("[TS3] Text-specific events registered.");
-    } catch (e) {
-      console.warn("[TS3] Text-specific registration failed:", e.message);
-    }
-
-    // ── STEP 3: Listen for ANY event to verify the event system works ─────
-    const anyEvents = [
-      "textmessage",
-      "textMessage",
-      "clientconnect",
-      "clientdisconnect",
-      "clientmoved",
-      "serveredit",
-      "channelcreate",
-      "channeledit",
-      "channeldelete",
-    ];
-    for (const name of anyEvents) {
-      ts3.on(name, (data) => {
-        console.log(
-          `[EVENT] "${name}" fired — keys:`,
-          Object.keys(data || {}).join(", "),
-        );
-      });
-    }
-
-    // ── STEP 4: Try sending a raw servernotifyregister and log response ───
-    try {
-      // v3 may support send() or execute() for raw commands
-      if (typeof ts3.send === "function") {
-        const res = await ts3.send("servernotifyregister", [
-          "event=textserver",
-        ]);
-        console.log(
-          "[TS3] Raw servernotifyregister response:",
-          JSON.stringify(res).slice(0, 200),
-        );
-      } else {
-        console.log(
-          "[TS3] ts3.send() not available — cannot send raw command.",
-        );
-      }
-    } catch (e) {
-      console.warn("[TS3] Raw servernotifyregister failed:", e.message);
-    }
-
-    // ── STEP 5: Send a test message to verify the bot can talk ────────────
-    try {
-      // Get the first channel and send a test message
-      const channels = await ts3.channelList();
-      if (channels.length > 0) {
-        const firstCid = channels[0].cid || channels[0].channelId;
-        console.log(
-          `[TS3] Found ${channels.length} channels. Sending test message to channel ${firstCid}...`,
-        );
-        // Don't actually send — just verify the method exists
-        console.log(
-          "[TS3] sendTextMessage method exists:",
-          typeof ts3.sendTextMessage,
-        );
-      }
-    } catch (e) {
-      console.warn("[TS3] Channel list failed:", e.message);
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-
-    ts3.on("textmessage", async (event) => {
-      // Dump full event structure on first message received
-      console.log(
-        "[DEBUG] Raw textmessage event keys:",
-        Object.keys(event).join(", "),
-      );
-      console.log(
-        "[DEBUG] Full event:",
-        JSON.stringify(event, null, 2).slice(0, 500),
-      );
-
-      try {
-        // ── Extract message text ────────────────────────────────────────────
-        // v3 uses event.msg; older versions use event.message — check both
-        const rawText = event.msg || event.message || "";
-        const text = String(rawText).trim();
-        if (!text) return;
-
-        // ── Extract invoker info ────────────────────────────────────────────
-        // v3 nests invoker data in event.invoker; fall back to top-level keys
-        const inv = event.invoker || {};
-        const invokerClid =
-          inv.clid || inv.id || event.invokerid || event.invokerId;
-        const invokerUid =
-          inv.uniqueIdentifier ||
-          inv.uid ||
-          event.invokeruid ||
-          event.invokerUid;
-        const invokerNick =
-          inv.nickname ||
-          inv.name ||
-          event.invokername ||
-          event.invokerName ||
-          "Unknown";
-
-        if (!invokerClid || !invokerUid) {
-          console.log(
-            "[TS3] Received message but could not identify sender:",
-            JSON.stringify(event).slice(0, 200),
-          );
-          return;
-        }
-
-        // ── Ignore self-messages ────────────────────────────────────────────
-        const self = await ts3.whoami().catch(() => null);
-        if (self && invokerClid === self.clid) return;
-
-        console.log(
-          `[TS3] Command from ${invokerNick} (${invokerUid}): ${text}`,
-        );
-
-        // ── Process the command ─────────────────────────────────────────────
-        const reply = await handleMessage(text, invokerUid, invokerNick);
-        if (!reply) return; // not a command (didn't start with #)
-
-        console.log(
-          `[TS3] Reply to ${invokerNick}: ${reply.slice(0, 100)}${reply.length > 100 ? "..." : ""}`,
-        );
-
-        // ── Determine target mode ───────────────────────────────────────────
-        // targetmode: 1=private, 2=channel, 3=server
-        const mode = event.targetmode || event.target || 2;
-        let targetId = null;
-
-        if (mode === 1) {
-          // Private message — reply directly to the invoker
-          targetId = invokerClid;
-        } else if (mode === 3) {
-          // Server-wide message — broadcast to server
-          targetId = 0;
-        } else {
-          // Channel message (mode 2) — look up the invoker's current channel
-          const info = await ts3.clientInfo(invokerClid).catch(() => null);
-          targetId = info ? info.cid || info.channelId : null;
-        }
-
-        // ── Send reply to TS3 ───────────────────────────────────────────────
-        if (targetId !== null && targetId !== undefined) {
-          await ts3.sendTextMessage(targetId, mode === 1 ? 1 : 2, reply);
-          console.log(
-            `[TS3] Response sent to ${mode === 1 ? "private" : "channel"} (target ${targetId})`,
-          );
-        } else {
-          // Fallback: send privately if we can't determine the channel
-          console.warn(
-            `[TS3] Could not determine channel for ${invokerNick}, sending private reply.`,
-          );
-          await ts3.sendTextMessage(invokerClid, 1, reply);
-        }
-
-        // ── Also relay to Discord webhook ───────────────────────────────────
-        const discordMsg = [
-          `📥 **${invokerNick}** used command in TS3:`,
-          "```",
-          text,
-          "```",
-          "**Result:**",
-          "```",
-          reply,
-          "```",
-        ].join("\n");
-
-        // Truncate if too long (Discord webhook limit is 2000 chars)
-        const finalMsg =
-          discordMsg.length > 1950
-            ? discordMsg.slice(0, 1950) + "\n... (truncated)"
-            : discordMsg;
-
-        await postWebhook(finalMsg).catch((e) =>
-          console.error("[TS3] Discord relay error:", e.message),
-        );
-      } catch (e) {
-        console.error("[TS3] textmessage handler error:", e.message, e.stack);
-      }
-    });
-
-    // Handle disconnection — auto-reconnect
-    ts3.on("close", () => {
-      isConnected = false;
-      console.warn("[TS3] Connection closed. Reconnecting in 10s...");
-      if (pollTimer) clearInterval(pollTimer);
-      pollTimer = null;
-      setTimeout(connectTS3, 10_000);
-    });
-
-    ts3.on("error", (err) => {
-      console.error("[TS3] Error:", err.message);
-    });
+    // Start raw TCP listener for text notifications (bypasses broken event system)
+    startRawTextListener();
 
     // Start the polling loop
     startPolling();
