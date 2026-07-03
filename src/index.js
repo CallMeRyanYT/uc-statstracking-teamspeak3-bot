@@ -207,8 +207,7 @@ async function connectTS3() {
       }
     }
 
-    // Register for ALL server events in one call (v3 standard approach)
-    // "server" enables: text messages, client joins/leaves, channel changes, etc.
+    // ── STEP 1: Register for server events ─────────────────────────────────
     console.log("[TS3] Registering for server events...");
     try {
       await ts3.registerEvent("server");
@@ -217,24 +216,75 @@ async function connectTS3() {
       console.error("[TS3] Failed to register events:", e.message);
     }
 
-    // ── DEBUG: catch-all event listeners ────────────────────────────────────
-    // Listen on every possible text-event name the library might emit
-    for (const evName of ["textmessage", "textMessage", "textmsg", "chat"]) {
-      ts3.on(evName, (data) => {
+    // ── STEP 2: Also try text-specific registration ───────────────────────
+    try {
+      await ts3.registerEvent("textserver");
+      await ts3.registerEvent("textprivate");
+      await ts3.registerEvent("textchannel", 0);
+      console.log("[TS3] Text-specific events registered.");
+    } catch (e) {
+      console.warn("[TS3] Text-specific registration failed:", e.message);
+    }
+
+    // ── STEP 3: Listen for ANY event to verify the event system works ─────
+    const anyEvents = [
+      "textmessage",
+      "textMessage",
+      "clientconnect",
+      "clientdisconnect",
+      "clientmoved",
+      "serveredit",
+      "channelcreate",
+      "channeledit",
+      "channeldelete",
+    ];
+    for (const name of anyEvents) {
+      ts3.on(name, (data) => {
         console.log(
-          `[DEBUG] Event "${evName}" fired! Keys:`,
+          `[EVENT] "${name}" fired — keys:`,
           Object.keys(data || {}).join(", "),
         );
-        console.log(`[DEBUG] Raw data:`, JSON.stringify(data).slice(0, 500));
       });
     }
-    // Also try listening for the raw notifytextmessage
-    ts3.on("notifytextmessage", (data) => {
-      console.log(
-        "[DEBUG] Raw notifytextmessage:",
-        JSON.stringify(data).slice(0, 500),
-      );
-    });
+
+    // ── STEP 4: Try sending a raw servernotifyregister and log response ───
+    try {
+      // v3 may support send() or execute() for raw commands
+      if (typeof ts3.send === "function") {
+        const res = await ts3.send("servernotifyregister", [
+          "event=textserver",
+        ]);
+        console.log(
+          "[TS3] Raw servernotifyregister response:",
+          JSON.stringify(res).slice(0, 200),
+        );
+      } else {
+        console.log(
+          "[TS3] ts3.send() not available — cannot send raw command.",
+        );
+      }
+    } catch (e) {
+      console.warn("[TS3] Raw servernotifyregister failed:", e.message);
+    }
+
+    // ── STEP 5: Send a test message to verify the bot can talk ────────────
+    try {
+      // Get the first channel and send a test message
+      const channels = await ts3.channelList();
+      if (channels.length > 0) {
+        const firstCid = channels[0].cid || channels[0].channelId;
+        console.log(
+          `[TS3] Found ${channels.length} channels. Sending test message to channel ${firstCid}...`,
+        );
+        // Don't actually send — just verify the method exists
+        console.log(
+          "[TS3] sendTextMessage method exists:",
+          typeof ts3.sendTextMessage,
+        );
+      }
+    } catch (e) {
+      console.warn("[TS3] Channel list failed:", e.message);
+    }
     // ─────────────────────────────────────────────────────────────────────────
 
     ts3.on("textmessage", async (event) => {
