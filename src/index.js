@@ -300,9 +300,9 @@ let rawSocket = null;
 let rawBuf = "";
 let rawServerSelected = false;
 let rawEventsRegistered = false;
-let rawRegisteredChannelIds = new Set();
 let rawReconnectTimer = null;
 let rawShouldReconnect = false;
+const recentCommandEvents = new Map();
 
 function escapeServerQueryValue(value) {
   return String(value)
@@ -359,7 +359,6 @@ function resetRawState() {
   rawBuf = "";
   rawServerSelected = false;
   rawEventsRegistered = false;
-  rawRegisteredChannelIds = new Set();
 }
 
 function startRawTextListener() {
@@ -429,52 +428,12 @@ function sendRaw(cmd) {
   rawSocket.write(cmd + "\n");
 }
 
-function getChannelId(channel) {
-  return String(channel?.channelId || channel?.cid || "").trim();
-}
-
-function registerRawChannelTextEvents(channelList) {
-  if (!rawSocket || rawSocket.destroyed || !rawEventsRegistered) return 0;
-
-  let registered = 0;
-  for (const channel of channelList || []) {
-    const channelId = getChannelId(channel);
-    if (!channelId || rawRegisteredChannelIds.has(channelId)) continue;
-
-    sendRaw(`servernotifyregister event=textchannel id=${channelId}`);
-    rawRegisteredChannelIds.add(channelId);
-    registered += 1;
-  }
-
-  return registered;
-}
-
 function registerRawTextEvents() {
   rawEventsRegistered = true;
   sendRaw("servernotifyregister event=textserver");
+  sendRaw("servernotifyregister event=textchannel");
   sendRaw("servernotifyregister event=textprivate");
-
-  (async () => {
-    try {
-      const channelList = ts3 ? await ts3.channelList() : [];
-      const registered = registerRawChannelTextEvents(channelList);
-
-      if (registered === 0) {
-        sendRaw("servernotifyregister event=textchannel id=0");
-        rawRegisteredChannelIds.add("0");
-      }
-
-      console.log(
-        `[Raw] Text events registered on raw connection (${rawRegisteredChannelIds.size} channel target(s)).`,
-      );
-    } catch (err) {
-      sendRaw("servernotifyregister event=textchannel id=0");
-      rawRegisteredChannelIds.add("0");
-      console.warn(
-        `[Raw] Channel text registration fallback used: ${err.message}`,
-      );
-    }
-  })();
+  console.log("[Raw] Text events registered on raw connection.");
 }
 
 function handleRawLine(line) {
@@ -566,49 +525,90 @@ async function sendTeamSpeakReply(invokerClid, targetmode, targetId, reply) {
   }
 
   if (channelId) {
-    await sendChunkedTextMessage(channelId, 2, reply);
-    return `channel:${channelId}`;
+    try {
+      await sendChunkedTextMessage(channelId, 2, reply);
+      return `channel:${channelId}`;
+    } catch (err) {
+      console.warn(
+        `[TS3] Channel reply failed for channel ${channelId}; falling back to private: ${err.message}`,
+      );
+    }
   }
 
   await sendChunkedTextMessage(invokerClid, 1, reply);
   return `private:${invokerClid}`;
 }
 
-function parseAndHandleText(line) {
-  const params = parseServerQueryParams(line);
-  const text = (params.msg || "").trim();
-  if (!text) return;
+function pruneRecentCommandEvents(now) {
+  for (const [key, ts] of recentCommandEvents) {
+    if (now - ts > 5_000) recentCommandEvents.delete(key);
+  }
+}
 
-  const invokerClid = parseInt(params.invokerid) || 0;
-  const invokerUid = params.invokeruid || "";
-  const invokerNick = params.invokername || "Unknown";
-  const targetmode = parseInt(params.targetmode) || 2;
-  const targetId = params.target || "";
+function shouldSkipDuplicateCommand(invokerUid, text, targetmode) {
+  const now = Date.now();
+  pruneRecentCommandEvents(now);
+  const key = `${invokerUid}|${targetmode}|${text}`;
+  if (recentCommandEvents.has(key)) return true;
+  recentCommandEvents.set(key, now);
+  return false;
+}
+
+async function handleCommandInvocation({
+  text,
+  invokerClid,
+  invokerUid,
+  invokerNick,
+  targetmode,
+  targetId = "",
+  source,
+}) {
+  text = String(text || "").trim();
+  if (!text) return;
 
   if (!invokerClid || !invokerUid) return;
 
-  console.log(`[Raw] Message from ${invokerNick}: ${text.slice(0, 100)}`);
+  const commandName = parseCommandName(text);
+  if (!commandName) return;
+  if (shouldSkipDuplicateCommand(invokerUid, text, targetmode)) return;
+
+  console.log(
+    `[${source}] Command from ${invokerNick}: ${text.slice(0, 100)}`,
+  );
+
+  const reply = await handleMessage(text, invokerUid, invokerNick);
+  if (!reply) return;
+
+  const target = await sendTeamSpeakReply(
+    invokerClid,
+    targetmode,
+    targetId,
+    reply,
+  );
+  console.log(`[${source}] Response sent (${target})`);
+
+  await sendCommandResultNotification(
+    commandName,
+    text,
+    reply,
+    invokerNick,
+  ).catch((e) => console.error(`[${source}] Discord error:`, e.message));
+}
+
+function parseAndHandleText(line) {
+  const params = parseServerQueryParams(line);
 
   (async () => {
     try {
-      const commandName = parseCommandName(text);
-      const reply = await handleMessage(text, invokerUid, invokerNick);
-      if (!reply) return;
-
-      const target = await sendTeamSpeakReply(
-        invokerClid,
-        targetmode,
-        targetId,
-        reply,
-      );
-      console.log(`[Raw] Response sent (${target})`);
-
-      await sendCommandResultNotification(
-        commandName,
-        text,
-        reply,
-        invokerNick,
-      ).catch((e) => console.error("[Raw] Discord error:", e.message));
+      await handleCommandInvocation({
+        text: params.msg || "",
+        invokerClid: parseInt(params.invokerid) || 0,
+        invokerUid: params.invokeruid || "",
+        invokerNick: params.invokername || "Unknown",
+        targetmode: parseInt(params.targetmode) || 2,
+        targetId: params.target || "",
+        source: "Raw",
+      });
     } catch (e) {
       console.error("[Raw] Handler error:", e.message);
     }
@@ -645,6 +645,47 @@ function handleConnectionLost(reason) {
   scheduleReconnect();
 }
 
+function getClientValue(client, keys) {
+  for (const key of keys) {
+    const value = client?.[key];
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+  return "";
+}
+
+function registerLibraryTextListener() {
+  ts3.on("textmessage", (event) => {
+    (async () => {
+      try {
+        const invoker = event.invoker || {};
+        await handleCommandInvocation({
+          text: event.msg || "",
+          invokerClid:
+            parseInt(getClientValue(invoker, ["clid", "clientId"])) || 0,
+          invokerUid: String(
+            getClientValue(invoker, [
+              "uniqueIdentifier",
+              "clientUniqueIdentifier",
+              "uid",
+            ]),
+          ),
+          invokerNick: String(
+            getClientValue(invoker, ["nickname", "clientNickname", "name"]) ||
+              "Unknown",
+          ),
+          targetmode: parseInt(event.targetmode) || 2,
+          targetId: "",
+          source: "TS3",
+        });
+      } catch (err) {
+        console.error("[TS3] Text event handler error:", err.message);
+      }
+    })();
+  });
+}
+
 async function connectTS3() {
   console.log(`[TS3] Connecting to ${TS3_HOST}:${TS3_QUERY_PORT} ...`);
 
@@ -676,6 +717,7 @@ async function connectTS3() {
     ts3.on("error", (err) =>
       console.error("[TS3] Connection error:", err.message),
     );
+    registerLibraryTextListener();
 
     isConnected = true;
     console.log("[TS3] Connected and authenticated.");
@@ -718,7 +760,6 @@ async function startPolling() {
         const id = String(ch.channelId || ch.cid || "");
         channelMap[id] = ch.name || id;
       }
-      registerRawChannelTextEvents(channelList);
 
       // Mark any clients who left since last poll
       await reconcileOfflineClients(clients);
