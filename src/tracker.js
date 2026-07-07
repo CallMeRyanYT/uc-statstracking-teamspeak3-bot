@@ -12,7 +12,7 @@
  *   client.nickname          -- display name
  *   client.channelId         -- current channel ID (number)
  *   client.away              -- boolean / 0/1
- *   client.type              -- 0=ServerQuery, 1=Voice
+ *   client.type              -- 0=regular voice client, 1=ServerQuery
  */
 
 const db = require("./database");
@@ -26,7 +26,10 @@ const AWAY_THRESHOLD_MIN =
 const activeSessions = new Map();
 
 // Comma-separated bot nicknames to skip tracking
-const BOT_NICKNAMES = (process.env.BOT_NICKNAMES || "")
+const DEFAULT_IGNORED_NICKNAMES =
+  "UC Stats Bot,serveradmin,UC Music Bot,Admonus";
+
+const BOT_NICKNAMES = (process.env.BOT_NICKNAMES || DEFAULT_IGNORED_NICKNAMES)
   .split(",")
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
@@ -38,14 +41,96 @@ const EXCLUDED_CHANNELS = (process.env.EXCLUDED_CHANNELS || "")
   .filter(Boolean);
 
 // ---------------------------------------------------------------------------
+function isIgnoredNickname(nickname) {
+  const nick = (nickname || "").toLowerCase();
+  return BOT_NICKNAMES.some((b) => nick.includes(b));
+}
+
+function ignoredNameWhereClause() {
+  if (!BOT_NICKNAMES.length) return null;
+  return BOT_NICKNAMES.map(() => "instr(lower(username), ?) > 0").join(" OR ");
+}
+
+function sqlPlaceholders(items) {
+  return items.map(() => "?").join(",");
+}
+
+async function purgeIgnoredUsers() {
+  const ignoredNames = BOT_NICKNAMES.map((n) => n.toLowerCase());
+  const whereIgnored = ignoredNameWhereClause();
+  if (!whereIgnored) return 0;
+
+  const uidRows = await db.allAsync(
+    `SELECT uid FROM users WHERE ${whereIgnored}
+     UNION
+     SELECT uid FROM sessions WHERE ${whereIgnored}
+     UNION
+     SELECT uid FROM events WHERE ${whereIgnored}`,
+    [...ignoredNames, ...ignoredNames, ...ignoredNames],
+  );
+
+  const uids = [
+    ...new Set((uidRows || []).map((row) => row.uid).filter(Boolean)),
+  ];
+
+  let deleted = 0;
+
+  if (uids.length) {
+    const placeholders = sqlPlaceholders(uids);
+    deleted += (
+      await db.runAsync(
+        `DELETE FROM hourly_activity WHERE uid IN (${placeholders})`,
+        uids,
+      )
+    ).changes;
+    deleted += (
+      await db.runAsync(
+        `DELETE FROM channel_time WHERE uid IN (${placeholders})`,
+        uids,
+      )
+    ).changes;
+    deleted += (
+      await db.runAsync(
+        `DELETE FROM sessions WHERE uid IN (${placeholders})`,
+        uids,
+      )
+    ).changes;
+    deleted += (
+      await db.runAsync(
+        `DELETE FROM events WHERE uid IN (${placeholders})`,
+        uids,
+      )
+    ).changes;
+    deleted += (
+      await db.runAsync(
+        `DELETE FROM users WHERE uid IN (${placeholders})`,
+        uids,
+      )
+    ).changes;
+  }
+
+  deleted += (
+    await db.runAsync(`DELETE FROM sessions WHERE ${whereIgnored}`, ignoredNames)
+  ).changes;
+  deleted += (
+    await db.runAsync(`DELETE FROM events WHERE ${whereIgnored}`, ignoredNames)
+  ).changes;
+
+  if (deleted) {
+    console.log(`[Tracker] Purged ${deleted} ignored user record(s).`);
+  }
+
+  return deleted;
+}
+
+// ---------------------------------------------------------------------------
 function shouldTrackClient(client) {
-  // Skip ServerQuery/admin clients (type 0)
+  // Skip ServerQuery/admin clients. In TeamSpeak, 0 = regular client, 1 = query.
   const clientType = client.type ?? client.clientType ?? client.client_type;
-  if (String(clientType) === "0") return false;
+  if (String(clientType) === "1") return false;
   if (!client.uniqueIdentifier || !client.nickname) return false;
 
-  const nick = (client.nickname || "").toLowerCase();
-  if (BOT_NICKNAMES.some((b) => nick.includes(b))) return false;
+  if (isIgnoredNickname(client.nickname)) return false;
 
   // channelId can be a number or string depending on library version
   const cid = String(client.channelId || client.cid || "");
@@ -95,7 +180,7 @@ async function evaluateAway(client) {
 // processClientTick -- called every poll interval for each visible client
 // ---------------------------------------------------------------------------
 async function processClientTick(client, channelMap) {
-  if (!shouldTrackClient(client)) return;
+  if (!shouldTrackClient(client)) return false;
 
   const uid = client.uniqueIdentifier;
   const username = client.nickname;
@@ -220,6 +305,8 @@ async function processClientTick(client, channelMap) {
       [tickTime, uid],
     );
   }
+
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -368,4 +455,5 @@ module.exports = {
   resetMonthlyTimes,
   getActiveSessions,
   clearRuntimeOnlineState,
+  purgeIgnoredUsers,
 };

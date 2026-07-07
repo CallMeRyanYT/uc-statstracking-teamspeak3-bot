@@ -20,7 +20,7 @@ services:
       - TS3_BOT_NICKNAME=${TS3_BOT_NICKNAME:-UC Stats Bot}
       - AFK_AWAY_THRESHOLD_MINUTES=${AFK_AWAY_THRESHOLD_MINUTES:-5}
       - EXCLUDED_CHANNELS=${EXCLUDED_CHANNELS:-}
-      - BOT_NICKNAMES=${BOT_NICKNAMES:-UC Stats Bot,serveradmin}
+      - BOT_NICKNAMES=${BOT_NICKNAMES:-UC Stats Bot,serveradmin,UC Music Bot,Admonus}
       - POLL_INTERVAL_MS=${POLL_INTERVAL_MS:-60000}
       - WEB_PORT=${WEB_PORT:-3000}
       - TZ=${TZ:-UTC}

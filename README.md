@@ -106,11 +106,13 @@ The bot does not need to join `Stalking Room`. It does not need text-message per
 | `TS3_BOT_NICKNAME` | `UC Stats Bot` | ServerQuery display nickname |
 | `AFK_AWAY_THRESHOLD_MINUTES` | `5` | Away time before active tracking pauses |
 | `EXCLUDED_CHANNELS` | | Comma-separated channel IDs to skip |
-| `BOT_NICKNAMES` | `UC Stats Bot,serveradmin` | Nicknames to never track |
+| `BOT_NICKNAMES` | `UC Stats Bot,serveradmin,UC Music Bot,Admonus` | Nicknames to never track |
 | `POLL_INTERVAL_MS` | `60000` | Poll frequency |
 | `WEB_PORT` | `3000` | App port inside Docker |
 | `HOST_WEB_PORT` | `3000` | Dashboard port on Windows |
 | `TZ` | `UTC` | Timezone for scheduled reset logs |
+
+Names in `BOT_NICKNAMES` are ignored during tracking and purged from existing stats on startup.
 
 ## Useful Commands
 

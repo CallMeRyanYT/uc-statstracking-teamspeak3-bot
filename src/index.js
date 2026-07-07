@@ -22,6 +22,7 @@ const {
   resetMonthlyTimes,
   getActiveSessions,
   clearRuntimeOnlineState,
+  purgeIgnoredUsers,
 } = require("./tracker");
 
 // ---------------------------------------------------------------------------
@@ -87,6 +88,8 @@ let ts3 = null;
 let pollTimer = null;
 let isConnected = false;
 let reconnectTimer = null;
+let lastPollStats = null;
+let lastPollLogKey = "";
 
 function checkTcpReachable(host, port, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -265,6 +268,7 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     bot_connected: isConnected,
     active_sessions: getActiveSessions().size,
+    last_poll: lastPollStats,
     ts3_host: TS3_HOST,
     ts3_query_port: TS3_QUERY_PORT,
     poll_interval_ms: POLL_MS,
@@ -368,7 +372,7 @@ async function startPolling() {
     if (!isConnected || !ts3) return;
 
     try {
-      const clients = await ts3.clientList();
+      const clients = await ts3.clientList({ clientType: 0 });
 
       // Build channelId -> channelName lookup map
       const channelList = await ts3.channelList();
@@ -382,9 +386,28 @@ async function startPolling() {
       // Mark any clients who left since last poll
       await reconcileOfflineClients(clients);
 
+      let processedClients = 0;
+
       // Process each visible client
       for (const client of clients) {
-        await processClientTick(client, channelMap);
+        if (await processClientTick(client, channelMap)) {
+          processedClients += 1;
+        }
+      }
+
+      lastPollStats = {
+        at: new Date().toISOString(),
+        visible_regular_clients: clients.length,
+        tracked_clients: processedClients,
+      };
+
+      const pollLogKey = `${clients.length}:${processedClients}`;
+      if (pollLogKey !== lastPollLogKey) {
+        lastPollLogKey = pollLogKey;
+        console.log(
+          `[Tracker] Poll saw ${clients.length} regular client(s), ` +
+            `tracking ${processedClients}.`,
+        );
       }
     } catch (err) {
       console.error("[Tracker] Poll error:", err.message);
@@ -438,6 +461,9 @@ console.log("===================================================");
 async function boot() {
   await clearRuntimeOnlineState().catch((err) => {
     console.error("[Tracker] Startup cleanup failed:", err.message);
+  });
+  await purgeIgnoredUsers().catch((err) => {
+    console.error("[Tracker] Ignored-user cleanup failed:", err.message);
   });
   connectTS3();
 }
