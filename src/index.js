@@ -81,6 +81,19 @@ const TS3_QUERY_PORT = ts3Address.port;
 const TS3_QUERY_USER = process.env.TS3_QUERY_USER || "serveradmin";
 const TS3_QUERY_PASS = process.env.TS3_QUERY_PASS || "";
 const TS3_BOT_NICK = process.env.TS3_BOT_NICKNAME || "UC Stats Bot";
+const TS3_BOT_HOME_CHANNEL_ID = String(
+  process.env.TS3_BOT_HOME_CHANNEL_ID || "",
+).trim();
+const TS3_BOT_HOME_CHANNEL_NAME = String(
+  process.env.TS3_BOT_HOME_CHANNEL_NAME ||
+    process.env.TS3_CHANNEL_NAME ||
+    process.env.TS3_BOT_HOME_CHANNEL ||
+    "",
+).trim();
+const TS3_BOT_HOME_CHANNEL_PASSWORD =
+  process.env.TS3_BOT_HOME_CHANNEL_PASSWORD ||
+  process.env.TS3_CHANNEL_PASS ||
+  "";
 const TS3_SERVER_ID = parsePositiveInt(process.env.TS3_SERVER_ID, 1);
 const TS3_SERVER_PORT = parsePositiveInt(process.env.TS3_SERVER_PORT, 9987);
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || "#";
@@ -655,6 +668,87 @@ function getClientValue(client, keys) {
   return "";
 }
 
+function getChannelValue(channel, keys) {
+  for (const key of keys) {
+    const value = channel?.[key];
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+  return "";
+}
+
+function getChannelId(channel) {
+  return String(getChannelValue(channel, ["channelId", "cid", "id"])).trim();
+}
+
+function getChannelName(channel) {
+  return String(getChannelValue(channel, ["name", "channelName"])).trim();
+}
+
+async function findBotHomeChannelId() {
+  if (TS3_BOT_HOME_CHANNEL_ID) return TS3_BOT_HOME_CHANNEL_ID;
+  if (!TS3_BOT_HOME_CHANNEL_NAME) return "";
+
+  const channels = await ts3.channelList();
+  const exact = channels.find(
+    (channel) =>
+      getChannelName(channel).toLowerCase() ===
+      TS3_BOT_HOME_CHANNEL_NAME.toLowerCase(),
+  );
+  if (exact) return getChannelId(exact);
+
+  const partial = channels.find((channel) =>
+    getChannelName(channel)
+      .toLowerCase()
+      .includes(TS3_BOT_HOME_CHANNEL_NAME.toLowerCase()),
+  );
+  return partial ? getChannelId(partial) : "";
+}
+
+async function moveQueryClientToHomeChannel() {
+  if (!TS3_BOT_HOME_CHANNEL_ID && !TS3_BOT_HOME_CHANNEL_NAME) return;
+
+  try {
+    const channelId = await findBotHomeChannelId();
+    if (!channelId) {
+      console.warn(
+        `[TS3] Bot home channel not found: ${TS3_BOT_HOME_CHANNEL_NAME || TS3_BOT_HOME_CHANNEL_ID}`,
+      );
+      return;
+    }
+
+    const who = await ts3.whoami();
+    const clientId = String(
+      who.clientId || who.clid || who.client_id || "",
+    ).trim();
+    const currentChannelId = String(
+      who.clientChannelId || who.cid || who.client_channel_id || "",
+    ).trim();
+
+    if (!clientId) {
+      console.warn("[TS3] Could not determine own query client ID.");
+      return;
+    }
+
+    if (currentChannelId === channelId) {
+      console.log(`[TS3] Bot already in home channel ${channelId}.`);
+      return;
+    }
+
+    await ts3.clientMove(
+      clientId,
+      channelId,
+      TS3_BOT_HOME_CHANNEL_PASSWORD || undefined,
+    );
+    console.log(`[TS3] Bot moved to home channel ${channelId}.`);
+  } catch (err) {
+    console.warn(
+      `[TS3] Could not move bot to home channel: ${err.message}. Commands may still work through private/server chat if text notifications are allowed.`,
+    );
+  }
+}
+
 function registerLibraryTextListener() {
   ts3.on("textmessage", (event) => {
     (async () => {
@@ -721,6 +815,7 @@ async function connectTS3() {
 
     isConnected = true;
     console.log("[TS3] Connected and authenticated.");
+    await moveQueryClientToHomeChannel();
 
     // Monitoring is global — all voice clients across the entire server are tracked.
     console.log("[TS3] Monitoring all channels (global tracking).");

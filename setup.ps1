@@ -167,6 +167,8 @@ if ($runWizard) {
     $quser     = Read-Val "ServerQuery username"         (Get-EnvVal $lines "TS3_QUERY_USER" "serveradmin")
     $qpass     = Read-Secret "ServerQuery password"      (Get-EnvVal $lines "TS3_QUERY_PASS" "")
     $botnick   = Read-Val "Bot display name"             (Get-EnvVal $lines "TS3_BOT_NICKNAME" "UC Stats Bot")
+    $homechan  = Read-Val "Bot home channel name (blank = disabled)" (Get-EnvVal $lines "TS3_BOT_HOME_CHANNEL_NAME" "")
+    $homeid    = Read-Val "Bot home channel ID (optional)" (Get-EnvVal $lines "TS3_BOT_HOME_CHANNEL_ID" "")
 
     Write-Host ""
     Write-Host "--- Discord Webhook ---" -ForegroundColor Cyan
@@ -188,6 +190,8 @@ if ($runWizard) {
     $lines = Set-EnvVal $lines "TS3_QUERY_USER"              $quser
     $lines = Set-EnvVal $lines "TS3_QUERY_PASS"              $qpass
     $lines = Set-EnvVal $lines "TS3_BOT_NICKNAME"            $botnick
+    $lines = Set-EnvVal $lines "TS3_BOT_HOME_CHANNEL_NAME"   $homechan
+    $lines = Set-EnvVal $lines "TS3_BOT_HOME_CHANNEL_ID"     $homeid
     $lines = Set-EnvVal $lines "DISCORD_WEBHOOK_URL"         $webhook
     $lines = Set-EnvVal $lines "COMMAND_WEBHOOK_URL"         $cmdhook
     $lines = Set-EnvVal $lines "HELP_WEBHOOK_URL"            $helphook
