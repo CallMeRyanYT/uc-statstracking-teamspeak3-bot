@@ -300,6 +300,7 @@ let rawSocket = null;
 let rawBuf = "";
 let rawServerSelected = false;
 let rawEventsRegistered = false;
+let rawRegisteredChannelIds = new Set();
 let rawReconnectTimer = null;
 let rawShouldReconnect = false;
 
@@ -358,6 +359,7 @@ function resetRawState() {
   rawBuf = "";
   rawServerSelected = false;
   rawEventsRegistered = false;
+  rawRegisteredChannelIds = new Set();
 }
 
 function startRawTextListener() {
@@ -427,6 +429,54 @@ function sendRaw(cmd) {
   rawSocket.write(cmd + "\n");
 }
 
+function getChannelId(channel) {
+  return String(channel?.channelId || channel?.cid || "").trim();
+}
+
+function registerRawChannelTextEvents(channelList) {
+  if (!rawSocket || rawSocket.destroyed || !rawEventsRegistered) return 0;
+
+  let registered = 0;
+  for (const channel of channelList || []) {
+    const channelId = getChannelId(channel);
+    if (!channelId || rawRegisteredChannelIds.has(channelId)) continue;
+
+    sendRaw(`servernotifyregister event=textchannel id=${channelId}`);
+    rawRegisteredChannelIds.add(channelId);
+    registered += 1;
+  }
+
+  return registered;
+}
+
+function registerRawTextEvents() {
+  rawEventsRegistered = true;
+  sendRaw("servernotifyregister event=textserver");
+  sendRaw("servernotifyregister event=textprivate");
+
+  (async () => {
+    try {
+      const channelList = ts3 ? await ts3.channelList() : [];
+      const registered = registerRawChannelTextEvents(channelList);
+
+      if (registered === 0) {
+        sendRaw("servernotifyregister event=textchannel id=0");
+        rawRegisteredChannelIds.add("0");
+      }
+
+      console.log(
+        `[Raw] Text events registered on raw connection (${rawRegisteredChannelIds.size} channel target(s)).`,
+      );
+    } catch (err) {
+      sendRaw("servernotifyregister event=textchannel id=0");
+      rawRegisteredChannelIds.add("0");
+      console.warn(
+        `[Raw] Channel text registration fallback used: ${err.message}`,
+      );
+    }
+  })();
+}
+
 function handleRawLine(line) {
   if (DEBUG_RAW_TS3 && line.startsWith("notify")) {
     console.log(`[Raw-LINE] ${line.slice(0, 200)}`);
@@ -439,12 +489,7 @@ function handleRawLine(line) {
       return;
     }
     if (!rawEventsRegistered) {
-      sendRaw("servernotifyregister event=textserver");
-      sendRaw("servernotifyregister event=textchannel");
-      sendRaw("servernotifyregister event=textchannel id=0");
-      sendRaw("servernotifyregister event=textprivate");
-      rawEventsRegistered = true;
-      console.log("[Raw] Text events registered on raw connection.");
+      registerRawTextEvents();
       return;
     }
     return;
@@ -673,6 +718,7 @@ async function startPolling() {
         const id = String(ch.channelId || ch.cid || "");
         channelMap[id] = ch.name || id;
       }
+      registerRawChannelTextEvents(channelList);
 
       // Mark any clients who left since last poll
       await reconcileOfflineClients(clients);
