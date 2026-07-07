@@ -1,6 +1,6 @@
 @echo off
 :: ============================================================
-:: UC Stats Bot — Windows Startup Launcher
+:: UC Stats Bot - Windows Startup Launcher
 :: Keep this file in the project root folder.
 ::
 :: To auto-start on boot:

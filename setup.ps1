@@ -167,16 +167,6 @@ if ($runWizard) {
     $quser     = Read-Val "ServerQuery username"         (Get-EnvVal $lines "TS3_QUERY_USER" "serveradmin")
     $qpass     = Read-Secret "ServerQuery password"      (Get-EnvVal $lines "TS3_QUERY_PASS" "")
     $botnick   = Read-Val "Bot display name"             (Get-EnvVal $lines "TS3_BOT_NICKNAME" "UC Stats Bot")
-    $homechan  = Read-Val "Bot home channel name (blank = disabled)" (Get-EnvVal $lines "TS3_BOT_HOME_CHANNEL_NAME" "")
-    $homeid    = Read-Val "Bot home channel ID (optional)" (Get-EnvVal $lines "TS3_BOT_HOME_CHANNEL_ID" "")
-
-    Write-Host ""
-    Write-Host "--- Discord Webhook ---" -ForegroundColor Cyan
-    $webhook   = Read-Val "Report webhook URL"           (Get-EnvVal $lines "DISCORD_WEBHOOK_URL" "")
-    $cmdhook   = Read-Val "Command webhook URL (blank = report webhook)" (Get-EnvVal $lines "COMMAND_WEBHOOK_URL" "")
-    $helphook  = Read-Val "#help webhook URL (blank = command webhook)" (Get-EnvVal $lines "HELP_WEBHOOK_URL" "")
-    $jlwh      = Read-Val "Post join/leave/move to Discord (true/false)" (Get-EnvVal $lines "JOIN_LEAVE_WEBHOOK" "false")
-    $jlhook    = Read-Val "Join/leave/move webhook URL"  (Get-EnvVal $lines "JOIN_LEAVE_WEBHOOK_URL" "")
 
     Write-Host ""
     Write-Host "--- Tracking Settings ---" -ForegroundColor Cyan
@@ -190,13 +180,6 @@ if ($runWizard) {
     $lines = Set-EnvVal $lines "TS3_QUERY_USER"              $quser
     $lines = Set-EnvVal $lines "TS3_QUERY_PASS"              $qpass
     $lines = Set-EnvVal $lines "TS3_BOT_NICKNAME"            $botnick
-    $lines = Set-EnvVal $lines "TS3_BOT_HOME_CHANNEL_NAME"   $homechan
-    $lines = Set-EnvVal $lines "TS3_BOT_HOME_CHANNEL_ID"     $homeid
-    $lines = Set-EnvVal $lines "DISCORD_WEBHOOK_URL"         $webhook
-    $lines = Set-EnvVal $lines "COMMAND_WEBHOOK_URL"         $cmdhook
-    $lines = Set-EnvVal $lines "HELP_WEBHOOK_URL"            $helphook
-    $lines = Set-EnvVal $lines "JOIN_LEAVE_WEBHOOK"          $jlwh
-    $lines = Set-EnvVal $lines "JOIN_LEAVE_WEBHOOK_URL"      $jlhook
     $lines = Set-EnvVal $lines "AFK_AWAY_THRESHOLD_MINUTES"  $afkMin
     $lines = Set-EnvVal $lines "WEB_PORT"                    $webport
     $lines = Set-EnvVal $lines "HOST_WEB_PORT"               $hostport

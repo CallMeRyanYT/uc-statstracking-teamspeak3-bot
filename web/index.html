@@ -438,26 +438,6 @@
       gap: 10px;
     }
 
-    .command-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      padding: 14px 18px 18px;
-    }
-
-    .command-chip {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.72rem;
-      color: var(--text-2);
-      background: rgba(99, 120, 255, 0.04);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
     .empty-state {
       text-align: center;
       padding: 40px 20px;
@@ -803,14 +783,6 @@
         </ul>
       </div>
 
-      <!-- Commands -->
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title"># Commands</div>
-        </div>
-        <div class="command-grid" id="command-grid"></div>
-      </div>
-
     </div>
   </div>
 
@@ -884,7 +856,6 @@
   let currentTab = 'total';
   let hoursPerTick = 1 / 60;
   const timeKeys = { total: 'total_time', daily: 'daily_time', weekly: 'weekly_time', monthly: 'monthly_time' };
-  const commandList = ['#help', '#stats', '#rank', '#top', '#today', '#week', '#month', '#online', '#session', '#peak', '#channels', '#history', '#afk', '#server'];
 
   // ── Fetch & Render ────────────────────────────────────────────────────────
   async function fetchAll() {
@@ -903,7 +874,6 @@
     renderServerStats(server, online, health);
     renderChannels(channels);
     renderActivity(activity);
-    renderCommands();
   }
 
   function renderServerStats(s, online, health) {
@@ -1022,13 +992,6 @@
           <div class="compact-secondary">${esc(ev.channel_name || 'Server')} • ${fmtDate(ev.timestamp)}</div>
         </div>
       </li>`).join('');
-  }
-
-  function renderCommands() {
-    const grid = document.getElementById('command-grid');
-    if (grid.dataset.rendered) return;
-    grid.dataset.rendered = 'true';
-    grid.innerHTML = commandList.map(cmd => `<div class="command-chip">${cmd}</div>`).join('');
   }
 
   // ── Tab switching ─────────────────────────────────────────────────────────

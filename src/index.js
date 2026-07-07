@@ -23,13 +23,6 @@ const {
   getActiveSessions,
   clearRuntimeOnlineState,
 } = require("./tracker");
-const { handleMessage } = require("./commands");
-const {
-  sendCommandResultNotification,
-  sendHourlyReport,
-  sendDailyReport,
-  sendWeeklyReport,
-} = require("./discord");
 
 // ---------------------------------------------------------------------------
 // Config from .env
@@ -81,29 +74,10 @@ const TS3_QUERY_PORT = ts3Address.port;
 const TS3_QUERY_USER = process.env.TS3_QUERY_USER || "serveradmin";
 const TS3_QUERY_PASS = process.env.TS3_QUERY_PASS || "";
 const TS3_BOT_NICK = process.env.TS3_BOT_NICKNAME || "UC Stats Bot";
-const TS3_BOT_HOME_CHANNEL_ID = String(
-  process.env.TS3_BOT_HOME_CHANNEL_ID || "",
-).trim();
-const TS3_BOT_HOME_CHANNEL_NAME = String(
-  process.env.TS3_BOT_HOME_CHANNEL_NAME ||
-    process.env.TS3_CHANNEL_NAME ||
-    process.env.TS3_BOT_HOME_CHANNEL ||
-    "",
-).trim();
-const TS3_BOT_HOME_CHANNEL_PASSWORD =
-  process.env.TS3_BOT_HOME_CHANNEL_PASSWORD ||
-  process.env.TS3_CHANNEL_PASS ||
-  "";
 const TS3_SERVER_ID = parsePositiveInt(process.env.TS3_SERVER_ID, 1);
 const TS3_SERVER_PORT = parsePositiveInt(process.env.TS3_SERVER_PORT, 9987);
-const COMMAND_PREFIX = process.env.COMMAND_PREFIX || "#";
-const DEBUG_RAW_TS3 = process.env.DEBUG_RAW_TS3 === "true";
 const POLL_MS = parsePositiveInt(process.env.POLL_INTERVAL_MS, 60_000);
 const WEB_PORT = parsePositiveInt(process.env.WEB_PORT, 3000);
-const TS3_MESSAGE_MAX_LENGTH = parsePositiveInt(
-  process.env.TS3_MESSAGE_MAX_LENGTH,
-  900,
-);
 const TS3_CONNECT_TIMEOUT_MS = parsePositiveInt(
   process.env.TS3_CONNECT_TIMEOUT_MS,
   10_000,
@@ -306,328 +280,6 @@ app.listen(WEB_PORT, () => {
   console.log(`[Web] Dashboard running at http://localhost:${WEB_PORT}`);
 });
 
-// =========================================================================
-// Raw TCP text listener - bypasses broken library event system
-// =========================================================================
-let rawSocket = null;
-let rawBuf = "";
-let rawServerSelected = false;
-let rawEventsRegistered = false;
-let rawReconnectTimer = null;
-let rawShouldReconnect = false;
-const recentCommandEvents = new Map();
-
-function escapeServerQueryValue(value) {
-  return String(value)
-    .replace(/\\/g, "\\\\")
-    .replace(/\//g, "\\/")
-    .replace(/\|/g, "\\p")
-    .replace(/ /g, "\\s")
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r")
-    .replace(/\t/g, "\\t");
-}
-
-function decodeServerQueryValue(value) {
-  const escapes = {
-    "\\": "\\",
-    "/": "/",
-    s: " ",
-    p: "|",
-    n: "\n",
-    r: "\r",
-    t: "\t",
-    a: "\x07",
-    b: "\b",
-    f: "\f",
-    v: "\v",
-  };
-
-  return String(value).replace(/\\(.)/g, (_, ch) => escapes[ch] ?? ch);
-}
-
-function parseServerQueryParams(line) {
-  const params = {};
-  const fields = line.trim().split(/\s+/);
-
-  for (const field of fields.slice(1)) {
-    const eq = field.indexOf("=");
-    if (eq === -1) continue;
-
-    const key = field.slice(0, eq);
-    const value = field.slice(eq + 1);
-    params[key] = decodeServerQueryValue(value);
-  }
-
-  return params;
-}
-
-function buildRawUseCommand() {
-  return TS3_SERVER_ID
-    ? `use sid=${TS3_SERVER_ID}`
-    : `use port=${TS3_SERVER_PORT}`;
-}
-
-function resetRawState() {
-  rawBuf = "";
-  rawServerSelected = false;
-  rawEventsRegistered = false;
-}
-
-function startRawTextListener() {
-  if (rawSocket && !rawSocket.destroyed) return;
-
-  rawShouldReconnect = true;
-  if (rawReconnectTimer) {
-    clearTimeout(rawReconnectTimer);
-    rawReconnectTimer = null;
-  }
-
-  console.log("[Raw] Starting raw TCP text listener...");
-  rawSocket = new net.Socket();
-  rawSocket.connect(TS3_QUERY_PORT, TS3_HOST, () => {
-    console.log(`[Raw] Connected to ${TS3_HOST}:${TS3_QUERY_PORT}`);
-    sendRaw(
-      `login ${escapeServerQueryValue(TS3_QUERY_USER)} ${escapeServerQueryValue(
-        TS3_QUERY_PASS,
-      )}`,
-    );
-  });
-  rawSocket.on("data", (chunk) => {
-    const str = chunk.toString("utf8");
-    if (DEBUG_RAW_TS3) {
-      console.log(`[Raw-DATA] ${JSON.stringify(str.slice(0, 500))}`);
-    }
-    rawBuf += str;
-    let idx;
-    while ((idx = rawBuf.indexOf("\n")) !== -1) {
-      const line = rawBuf.slice(0, idx).replace(/\r$/, "").trim();
-      rawBuf = rawBuf.slice(idx + 1);
-      if (!line) continue;
-      handleRawLine(line);
-    }
-  });
-  rawSocket.on("close", () => {
-    const shouldReconnect = rawShouldReconnect && isConnected;
-    if (shouldReconnect) {
-      console.warn("[Raw] TCP closed. Reconnecting in 30s...");
-    }
-    rawSocket = null;
-    resetRawState();
-    if (shouldReconnect) {
-      rawReconnectTimer = setTimeout(startRawTextListener, 30_000);
-    }
-  });
-  rawSocket.on("error", (err) =>
-    console.error("[Raw] TCP error:", err.message),
-  );
-}
-
-function stopRawTextListener() {
-  rawShouldReconnect = false;
-  if (rawReconnectTimer) {
-    clearTimeout(rawReconnectTimer);
-    rawReconnectTimer = null;
-  }
-  if (rawSocket && !rawSocket.destroyed) {
-    rawSocket.destroy();
-  }
-  rawSocket = null;
-  resetRawState();
-}
-
-function sendRaw(cmd) {
-  if (!rawSocket || rawSocket.destroyed) return;
-  rawSocket.write(cmd + "\n");
-}
-
-function registerRawTextEvents() {
-  rawEventsRegistered = true;
-  sendRaw("servernotifyregister event=textserver");
-  sendRaw("servernotifyregister event=textchannel");
-  sendRaw("servernotifyregister event=textprivate");
-  console.log("[Raw] Text events registered on raw connection.");
-}
-
-function handleRawLine(line) {
-  if (DEBUG_RAW_TS3 && line.startsWith("notify")) {
-    console.log(`[Raw-LINE] ${line.slice(0, 200)}`);
-  }
-
-  if (line.startsWith("error id=0 msg=ok")) {
-    if (!rawServerSelected) {
-      sendRaw(buildRawUseCommand());
-      rawServerSelected = true;
-      return;
-    }
-    if (!rawEventsRegistered) {
-      registerRawTextEvents();
-      return;
-    }
-    return;
-  }
-  if (line.startsWith("error id=")) {
-    console.warn(`[Raw] ServerQuery response: ${decodeServerQueryValue(line)}`);
-    return;
-  }
-  if (line.startsWith("notifytextmessage")) {
-    parseAndHandleText(line);
-    return;
-  }
-}
-
-function parseCommandName(rawText) {
-  if (!rawText.startsWith(COMMAND_PREFIX)) return null;
-
-  const commandText = rawText.slice(COMMAND_PREFIX.length).trim();
-  if (!commandText) return null;
-
-  return commandText.split(/\s+/, 1)[0].toLowerCase();
-}
-
-function splitTeamSpeakMessage(message) {
-  const chunks = [];
-  let current = "";
-
-  for (const line of String(message).split("\n")) {
-    const pieces = [];
-    for (let i = 0; i < line.length; i += TS3_MESSAGE_MAX_LENGTH) {
-      pieces.push(line.slice(i, i + TS3_MESSAGE_MAX_LENGTH));
-    }
-    if (pieces.length === 0) pieces.push("");
-
-    for (const piece of pieces) {
-      const next = current ? `${current}\n${piece}` : piece;
-      if (next.length > TS3_MESSAGE_MAX_LENGTH && current) {
-        chunks.push(current);
-        current = piece;
-      } else {
-        current = next;
-      }
-    }
-  }
-
-  if (current) chunks.push(current);
-  return chunks.length ? chunks : [""];
-}
-
-async function sendChunkedTextMessage(targetId, targetMode, reply) {
-  for (const chunk of splitTeamSpeakMessage(reply)) {
-    await ts3.sendTextMessage(String(targetId), targetMode, chunk);
-  }
-}
-
-async function sendTeamSpeakReply(invokerClid, targetmode, targetId, reply) {
-  if (!ts3) throw new Error("TS3 connection is not ready");
-
-  if (targetmode === 1) {
-    await sendChunkedTextMessage(invokerClid, 1, reply);
-    return `private:${invokerClid}`;
-  }
-
-  if (targetmode === 3) {
-    await sendChunkedTextMessage("0", 3, reply);
-    return "server";
-  }
-
-  let channelId = targetId ? String(targetId) : "";
-  if (!channelId) {
-    const info = await ts3.clientInfo(invokerClid).catch(() => null);
-    channelId =
-      info && String(info.cid || info.channelId || info.clientChannelId || "");
-  }
-
-  if (channelId) {
-    try {
-      await sendChunkedTextMessage(channelId, 2, reply);
-      return `channel:${channelId}`;
-    } catch (err) {
-      console.warn(
-        `[TS3] Channel reply failed for channel ${channelId}; falling back to private: ${err.message}`,
-      );
-    }
-  }
-
-  await sendChunkedTextMessage(invokerClid, 1, reply);
-  return `private:${invokerClid}`;
-}
-
-function pruneRecentCommandEvents(now) {
-  for (const [key, ts] of recentCommandEvents) {
-    if (now - ts > 5_000) recentCommandEvents.delete(key);
-  }
-}
-
-function shouldSkipDuplicateCommand(invokerUid, text, targetmode) {
-  const now = Date.now();
-  pruneRecentCommandEvents(now);
-  const key = `${invokerUid}|${targetmode}|${text}`;
-  if (recentCommandEvents.has(key)) return true;
-  recentCommandEvents.set(key, now);
-  return false;
-}
-
-async function handleCommandInvocation({
-  text,
-  invokerClid,
-  invokerUid,
-  invokerNick,
-  targetmode,
-  targetId = "",
-  source,
-}) {
-  text = String(text || "").trim();
-  if (!text) return;
-
-  if (!invokerClid || !invokerUid) return;
-
-  const commandName = parseCommandName(text);
-  if (!commandName) return;
-  if (shouldSkipDuplicateCommand(invokerUid, text, targetmode)) return;
-
-  console.log(
-    `[${source}] Command from ${invokerNick}: ${text.slice(0, 100)}`,
-  );
-
-  const reply = await handleMessage(text, invokerUid, invokerNick);
-  if (!reply) return;
-
-  const target = await sendTeamSpeakReply(
-    invokerClid,
-    targetmode,
-    targetId,
-    reply,
-  );
-  console.log(`[${source}] Response sent (${target})`);
-
-  await sendCommandResultNotification(
-    commandName,
-    text,
-    reply,
-    invokerNick,
-  ).catch((e) => console.error(`[${source}] Discord error:`, e.message));
-}
-
-function parseAndHandleText(line) {
-  const params = parseServerQueryParams(line);
-
-  (async () => {
-    try {
-      await handleCommandInvocation({
-        text: params.msg || "",
-        invokerClid: parseInt(params.invokerid) || 0,
-        invokerUid: params.invokeruid || "",
-        invokerNick: params.invokername || "Unknown",
-        targetmode: parseInt(params.targetmode) || 2,
-        targetId: params.target || "",
-        source: "Raw",
-      });
-    } catch (e) {
-      console.error("[Raw] Handler error:", e.message);
-    }
-  })();
-}
-
 // ---------------------------------------------------------------------------
 // TS3 Connection
 // ---------------------------------------------------------------------------
@@ -653,131 +305,8 @@ function handleConnectionLost(reason) {
 
   isConnected = false;
   stopPolling();
-  stopRawTextListener();
   console.warn(`[TS3] Connection lost${reason ? `: ${reason}` : ""}`);
   scheduleReconnect();
-}
-
-function getClientValue(client, keys) {
-  for (const key of keys) {
-    const value = client?.[key];
-    if (value !== undefined && value !== null && value !== "") {
-      return value;
-    }
-  }
-  return "";
-}
-
-function getChannelValue(channel, keys) {
-  for (const key of keys) {
-    const value = channel?.[key];
-    if (value !== undefined && value !== null && value !== "") {
-      return value;
-    }
-  }
-  return "";
-}
-
-function getChannelId(channel) {
-  return String(getChannelValue(channel, ["channelId", "cid", "id"])).trim();
-}
-
-function getChannelName(channel) {
-  return String(getChannelValue(channel, ["name", "channelName"])).trim();
-}
-
-async function findBotHomeChannelId() {
-  if (TS3_BOT_HOME_CHANNEL_ID) return TS3_BOT_HOME_CHANNEL_ID;
-  if (!TS3_BOT_HOME_CHANNEL_NAME) return "";
-
-  const channels = await ts3.channelList();
-  const exact = channels.find(
-    (channel) =>
-      getChannelName(channel).toLowerCase() ===
-      TS3_BOT_HOME_CHANNEL_NAME.toLowerCase(),
-  );
-  if (exact) return getChannelId(exact);
-
-  const partial = channels.find((channel) =>
-    getChannelName(channel)
-      .toLowerCase()
-      .includes(TS3_BOT_HOME_CHANNEL_NAME.toLowerCase()),
-  );
-  return partial ? getChannelId(partial) : "";
-}
-
-async function moveQueryClientToHomeChannel() {
-  if (!TS3_BOT_HOME_CHANNEL_ID && !TS3_BOT_HOME_CHANNEL_NAME) return;
-
-  try {
-    const channelId = await findBotHomeChannelId();
-    if (!channelId) {
-      console.warn(
-        `[TS3] Bot home channel not found: ${TS3_BOT_HOME_CHANNEL_NAME || TS3_BOT_HOME_CHANNEL_ID}`,
-      );
-      return;
-    }
-
-    const who = await ts3.whoami();
-    const clientId = String(
-      who.clientId || who.clid || who.client_id || "",
-    ).trim();
-    const currentChannelId = String(
-      who.clientChannelId || who.cid || who.client_channel_id || "",
-    ).trim();
-
-    if (!clientId) {
-      console.warn("[TS3] Could not determine own query client ID.");
-      return;
-    }
-
-    if (currentChannelId === channelId) {
-      console.log(`[TS3] Bot already in home channel ${channelId}.`);
-      return;
-    }
-
-    await ts3.clientMove(
-      clientId,
-      channelId,
-      TS3_BOT_HOME_CHANNEL_PASSWORD || undefined,
-    );
-    console.log(`[TS3] Bot moved to home channel ${channelId}.`);
-  } catch (err) {
-    console.warn(
-      `[TS3] Could not move bot to home channel: ${err.message}. Commands may still work through private/server chat if text notifications are allowed.`,
-    );
-  }
-}
-
-function registerLibraryTextListener() {
-  ts3.on("textmessage", (event) => {
-    (async () => {
-      try {
-        const invoker = event.invoker || {};
-        await handleCommandInvocation({
-          text: event.msg || "",
-          invokerClid:
-            parseInt(getClientValue(invoker, ["clid", "clientId"])) || 0,
-          invokerUid: String(
-            getClientValue(invoker, [
-              "uniqueIdentifier",
-              "clientUniqueIdentifier",
-              "uid",
-            ]),
-          ),
-          invokerNick: String(
-            getClientValue(invoker, ["nickname", "clientNickname", "name"]) ||
-              "Unknown",
-          ),
-          targetmode: parseInt(event.targetmode) || 2,
-          targetId: "",
-          source: "TS3",
-        });
-      } catch (err) {
-        console.error("[TS3] Text event handler error:", err.message);
-      }
-    })();
-  });
 }
 
 async function connectTS3() {
@@ -811,24 +340,18 @@ async function connectTS3() {
     ts3.on("error", (err) =>
       console.error("[TS3] Connection error:", err.message),
     );
-    registerLibraryTextListener();
 
     isConnected = true;
     console.log("[TS3] Connected and authenticated.");
-    await moveQueryClientToHomeChannel();
 
     // Monitoring is global — all voice clients across the entire server are tracked.
     console.log("[TS3] Monitoring all channels (global tracking).");
-
-    // Start raw TCP listener for text notifications (bypasses broken event system)
-    startRawTextListener();
 
     // Start the polling loop
     await startPolling();
   } catch (err) {
     isConnected = false;
     stopPolling();
-    stopRawTextListener();
     console.error("[TS3] Connection failed:", err.message);
     scheduleReconnect();
   }
@@ -874,26 +397,18 @@ async function startPolling() {
 }
 
 // ---------------------------------------------------------------------------
-// Scheduled Discord reports
+// Scheduled period resets
 // ---------------------------------------------------------------------------
 
-// Every hour on the hour
-cron.schedule("0 * * * *", () => {
-  console.log("[Cron] Sending hourly Discord report...");
-  sendHourlyReport().catch(console.error);
-});
-
-// Daily at midnight: post daily leaderboard + reset daily times
+// Daily at midnight: reset daily times
 cron.schedule("0 0 * * *", async () => {
-  console.log("[Cron] Daily report + reset...");
-  await sendDailyReport().catch(console.error);
+  console.log("[Cron] Daily reset...");
   await resetDailyTimes().catch(console.error);
 });
 
-// Sunday midnight: post weekly report + reset weekly times
+// Sunday midnight: reset weekly times
 cron.schedule("0 0 * * 0", async () => {
-  console.log("[Cron] Weekly report + reset...");
-  await sendWeeklyReport().catch(console.error);
+  console.log("[Cron] Weekly reset...");
   await resetWeeklyTimes().catch(console.error);
 });
 

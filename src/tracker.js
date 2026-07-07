@@ -153,22 +153,14 @@ async function processClientTick(client, channelMap) {
     });
     await logEvent(uid, username, "join", channelId, channelName, now);
     visitedChannel = true;
-    // Lazy-imported to avoid circular dependency with discord.js
-    require("./discord")
-      .sendJoinNotification(username, channelName)
-      .catch(() => {});
   } else {
     const sess = activeSessions.get(uid);
     if (sess.channelId !== channelId) {
       // User moved channels
-      const previousChannelName = sess.channelName;
       await logEvent(uid, username, "move", channelId, channelName, now);
       sess.channelId = channelId;
       sess.channelName = channelName;
       visitedChannel = true;
-      require("./discord")
-        .sendMoveNotification(username, previousChannelName, channelName)
-        .catch(() => {});
     }
   }
 
@@ -311,9 +303,6 @@ async function handleClientLeft(uid, username) {
       sess.channelName,
       now,
     );
-    require("./discord")
-      .sendLeaveNotification(username, sess.channelName)
-      .catch(() => {});
     activeSessions.delete(uid);
   }
 

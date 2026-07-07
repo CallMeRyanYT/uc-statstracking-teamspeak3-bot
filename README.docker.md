@@ -1,160 +1,143 @@
-# Docker Setup Guide — UC Stats Bot
+# Docker Setup Guide - UC Stats Bot
 
-This guide walks you through installing Docker Desktop on Windows and getting the bot running from scratch.
+This guide walks you through installing Docker Desktop on Windows and running the website-only TeamSpeak 3 stats tracker.
 
----
+## Part 1 - Install Docker Desktop
 
-## Part 1 — Install Docker Desktop
+Docker packages the bot and its dependencies into containers, so you do not need to install Node.js or SQLite manually.
 
-### What is Docker?
+1. Go to https://www.docker.com/products/docker-desktop
+2. Click "Download for Windows".
+3. Run the installer and allow WSL 2 if prompted.
+4. Restart your PC if the installer asks.
+5. Open Docker Desktop from the Start menu.
+6. Wait until Docker says it is running.
 
-Docker packages the bot and all its dependencies into a self-contained "container" that runs identically on any PC. You don't need to install Node.js, Python, or any libraries manually.
+Optional winget install:
 
-### Install Steps
+```powershell
+winget install --id Docker.DockerDesktop
+```
 
-1. Go to **https://www.docker.com/products/docker-desktop**
-2. Click **"Download for Windows"**
-3. Run the installer — it will ask to enable WSL 2 (say **Yes**)
-4. Restart your PC when prompted
-5. Open **Docker Desktop** from the Start menu
-6. Wait for the whale icon in the system tray to stop animating (this means Docker is ready)
-
-> **Auto-install via winget (if you have it):**
-> ```powershell
-> winget install --id Docker.DockerDesktop
-> ```
-
-### Verify Docker is Working
-
-Open PowerShell and run:
+Verify Docker:
 
 ```powershell
 docker --version
 docker info
 ```
 
-If both commands return output without errors, Docker is ready.
+## Part 2 - Run The Setup Wizard
 
----
+1. Open PowerShell.
+2. Go to the bot folder:
 
-## Part 2 — Run the Setup Wizard
-
-The `setup.ps1` wizard automates all configuration and building.
-
-1. Open **PowerShell** (right-click the Start button → Windows Terminal)
-2. Navigate to the bot folder:
    ```powershell
    cd C:\Users\YourName\Desktop\uc-statstracking-teamspeak3-bot
    ```
-3. Allow PowerShell to run local scripts (one-time):
+
+3. Allow local PowerShell scripts once:
+
    ```powershell
    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
    ```
+
 4. Run the wizard:
+
    ```powershell
    .\setup.ps1
    ```
 
-The wizard will:
-- ✅ Check Docker is running
-- ✅ Ask for your TS3 ServerQuery credentials
-- ✅ Build the Docker image
+The wizard checks Docker, asks for TS3 ServerQuery settings, writes `.env`, and builds the Docker image.
 
----
+## Part 3 - Start The Bot
 
-## Part 3 — Start the Bot
-
-After setup completes, double-click **`start_bot.bat`** — or from PowerShell:
+After setup completes, double-click `start_bot.bat`, or run:
 
 ```powershell
 docker compose up -d
 ```
 
-The `-d` flag runs it in the background.
+## Part 4 - Verify It Works
 
----
-
-## Part 4 — Verify Everything is Working
-
-### Check the bot is running
+Check containers:
 
 ```powershell
-docker ps
+docker compose ps
 ```
 
-You should see two containers:
-- `uc-stats-bot` — the tracking bot
-- `uc-stats-tunnel` — the Cloudflare public URL service
+You should see:
 
-### View live logs
+```text
+uc-stats-bot
+uc-stats-tunnel
+```
+
+View live bot logs:
 
 ```powershell
 docker logs -f uc-stats-bot
 ```
 
 A healthy startup looks like:
-```
+
+```text
 ===================================================
    UC Stats Tracking Bot for TeamSpeak 3
    Connecting to : host.docker.internal:10011
    Web Dashboard : http://localhost:3000
 ===================================================
-[Web] Dashboard running at http://localhost:3000 inside Docker; open http://localhost:3000 on Windows
-[TS3] Connecting to host.docker.internal:10011 ...
+[Web] Dashboard running at http://localhost:3000
 [TS3] Connected and authenticated.
 [TS3] Monitoring all channels (global tracking).
 [Tracker] Polling every 60s
 ```
 
-If you see repeated "Connection failed — retrying" messages, see the [Troubleshooting section in README.md](README.md#troubleshooting).
+Open the local dashboard:
 
-### Get the public Cloudflare URL
+```text
+http://localhost:3000
+```
+
+Get the temporary Cloudflare public URL:
 
 ```powershell
 docker logs uc-stats-tunnel
 ```
 
 Look for:
+
+```text
+https://example-name.trycloudflare.com
 ```
-Your quick Tunnel has been created! Visit it at:
-https://abc-def-ghi.trycloudflare.com
-```
 
-Share this URL with your friends — it's the live leaderboard!
+## Part 5 - Managing The Bot
 
----
-
-## Part 5 — Managing the Bot
-
-### Stop the bot
+Stop:
 
 ```powershell
 docker compose down
 ```
 
-### Restart the bot
+Restart:
 
 ```powershell
 docker compose restart
 ```
 
-### Start with live logs (foreground mode)
+Start with live logs:
 
 ```powershell
 docker compose up
 ```
 
-Press `Ctrl+C` to stop.
-
-### Rebuild after code changes
+Rebuild after code changes:
 
 ```powershell
 docker compose down
-docker compose build
-docker compose up -d
+docker compose up -d --build
 ```
 
-### Force a clean rebuild (if something is broken)
+Force a clean rebuild:
 
 ```powershell
 docker compose down
@@ -162,76 +145,51 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
----
+## Part 6 - Auto-Start On Windows Boot
 
-## Part 6 — Auto-Start on Windows Boot
+1. Press `Win+R`.
+2. Type `shell:startup` and press Enter.
+3. Copy `start_bot.bat`, or a shortcut to it, into that folder.
+4. In Docker Desktop settings, enable "Start Docker Desktop when you log in".
 
-To have the bot start automatically when your PC boots:
-
-1. Press `Win+R`, type `shell:startup`, press Enter — this opens the startup folder
-2. Copy `start_bot.bat` (or a shortcut to it) into that folder
-3. The bat file waits for Docker Desktop to be ready before starting the bot
-
-> **Note:** Docker Desktop itself must also be set to launch on startup. Open Docker Desktop → Settings → General → check "Start Docker Desktop when you log in".
-
----
-
-## Part 7 — Updating the Bot
+## Part 7 - Updating The Bot
 
 ```powershell
 git pull
 docker compose down
-docker compose build
-docker compose up -d
+docker compose up -d --build
 ```
 
-Your database is preserved in the Docker volume `uc_stats_data` and is NOT affected by updates.
+Your database is stored in the Docker volume `uc_stats_data` and is preserved across rebuilds.
 
----
-
-## Docker Command Cheat Sheet
+## Command Cheat Sheet
 
 | Task | Command |
-|---|---|
-| Start bot (background) | `docker compose up -d` |
+| --- | --- |
+| Start bot | `docker compose up -d` |
 | Stop bot | `docker compose down` |
 | View bot logs | `docker logs -f uc-stats-bot` |
 | View tunnel URL | `docker logs uc-stats-tunnel` |
 | Restart bot | `docker compose restart uc-stats-bot` |
-| List running containers | `docker ps` |
-| List all containers | `docker ps -a` |
-| Check disk usage | `docker system df` |
-| Remove unused images | `docker system prune` |
-| View volumes | `docker volume ls` |
-| Backup the database | `docker cp uc-stats-bot:/app/data/stats.sqlite ./backup.sqlite` |
+| List containers | `docker compose ps` |
+| Backup database | `docker cp uc-stats-bot:/app/data/stats.sqlite ./backup.sqlite` |
 
----
+## Same-PC Networking
 
-## Networking — Same PC Setup
+When your TS3 server and Docker both run on the same Windows PC, keep this in `.env`:
 
-When your TS3 server and the bot both run on the same Windows PC:
-
-```
-┌─────────────────────────── Your PC ──────────────────────────────┐
-│                                                                    │
-│   TS3 Server (ts3server.exe)    UC Stats Bot (Docker container)  │
-│   Port 9987  (voice)            connects via:                     │
-│   Port 10011 (ServerQuery) ◄──  host.docker.internal:10011       │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
+```env
+TS3_HOST=host.docker.internal
+TS3_QUERY_PORT=10011
 ```
 
-`host.docker.internal` is a special hostname Docker automatically resolves to your PC's local IP. This is pre-configured in `docker-compose.yml` via `extra_hosts`.
+That Docker hostname points from the container back to your Windows host. Do not use your public TS3 voice address for this same-PC setup unless you have also exposed the ServerQuery TCP port.
 
-**You don't need to change anything** — just keep `TS3_HOST=host.docker.internal` in your `.env`.
+## Data And Privacy
 
----
+All stats are stored locally in the Docker volume. The app only needs:
 
-## Data & Privacy
+- A TCP connection to your TS3 ServerQuery port.
+- An optional outbound Cloudflare Tunnel connection for the public dashboard URL.
 
-- All data is stored locally in a Docker volume on your PC
-- The only external connections are:
-  - **To your TS3 server** (ServerQuery on port 10011)
-  - **To Discord** (outbound POST to your webhook URL)
-  - **Cloudflare Tunnel** (outbound only — your data doesn't leave your machine, Cloudflare just routes HTTP traffic to it)
-- No data is ever sent to any third party or analytics service
+There are no Discord webhooks and no TS3 chat commands.
