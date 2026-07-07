@@ -17,7 +17,7 @@ A **fully-featured activity & stats tracking bot** for TeamSpeak 3 servers. Trac
 | **AFK Time Log** | Tracks separately so you can see real vs AFK presence |
 | **Chat Commands** | Type commands in TS3 chat to query stats (prefix: `#`) |
 | **Discord Webhook** | Hourly leaderboard, daily MVP, weekly summary — automatically posted |
-| **Web Dashboard** | Dark-mode live leaderboard at `localhost:3010` |
+| **Web Dashboard** | Dark-mode live leaderboard at `localhost:3000` |
 | **Cloudflare Tunnel** | Public URL auto-generated — no port forwarding needed |
 | **Localhost Support** | Works when TS3 server and bot run on the **same PC** |
 | **Persistent Data** | SQLite database stored in a Docker volume — survives restarts |
@@ -57,7 +57,7 @@ docker compose up -d
 
 ### Step 3 — View the Dashboard
 
-- **Local:** http://localhost:3010
+- **Local:** http://localhost:3000
 - **Public (Cloudflare Tunnel):** Run `docker logs uc-stats-tunnel` — the public URL is printed there
 
 ---
@@ -133,11 +133,11 @@ The bot posts automatically to your Discord webhook:
 | **Daily (midnight)** | Today's leaderboard + "Most active today" badge |
 | **Weekly (Sunday)** | Weekly leaderboard + all-time top 10 |
 
-> The webhook is pre-configured to post to the UC Discord channel. You can change it in your `.env` file (`DISCORD_WEBHOOK_URL`).
+> Leaderboard and scheduled reports post to `DISCORD_WEBHOOK_URL`. Mirrored TS3 command results use `COMMAND_WEBHOOK_URL` when set, otherwise they fall back to `DISCORD_WEBHOOK_URL`. The `#help` command can use its own `HELP_WEBHOOK_URL`.
 
 ### Optional: Join/Leave Notifications
 
-Set `JOIN_LEAVE_WEBHOOK=true` in your `.env` to also post when users join or leave the server.
+Set `JOIN_LEAVE_WEBHOOK=true` and `JOIN_LEAVE_WEBHOOK_URL=...` in your `.env` to post channel join, leave, and move events to a separate Discord channel.
 
 ---
 
@@ -163,7 +163,7 @@ This is the easiest option. It creates a random `trycloudflare.com` URL without 
    Your quick Tunnel has been created! Visit it at:
    https://example-example-example.trycloudflare.com
    ```
-5. Open that URL. You should see the same dashboard as `http://localhost:3010`.
+5. Open that URL. You should see the same dashboard as `http://localhost:3000`.
 
 Quick tunnel notes:
 - The URL changes when the tunnel container is recreated.
@@ -211,7 +211,7 @@ If the public dashboard does not load:
 
 1. Check the local dashboard first:
    ```powershell
-   Invoke-WebRequest http://localhost:3010/api/health
+   Invoke-WebRequest http://localhost:3000/api/health
    ```
 2. Check the tunnel logs:
    ```powershell
@@ -255,15 +255,18 @@ The 5-minute threshold matches the server rule: if you toggle away and stay away
 | `TS3_SERVER_PORT` | `9987` | Virtual server voice port inside TeamSpeak |
 | `TS3_CONNECT_TIMEOUT_MS` | `10000` | TCP/login timeout for ServerQuery |
 | `TS3_BOT_NICKNAME` | `UC Stats Bot` | Bot's display name in server tools |
-| `DISCORD_WEBHOOK_URL` | *(pre-set)* | Discord webhook for leaderboard posts |
-| `JOIN_LEAVE_WEBHOOK` | `false` | Post join/leave events to Discord |
-| `MIRROR_COMMAND_RESULTS_TO_DISCORD` | `true` | Mirror command results to Discord, except `#help` |
+| `DISCORD_WEBHOOK_URL` | *(set in .env)* | Discord webhook for leaderboard posts |
+| `COMMAND_WEBHOOK_URL` | *(blank)* | Optional separate webhook for mirrored TS3 command results |
+| `HELP_WEBHOOK_URL` | *(blank)* | Optional separate webhook for `#help` output |
+| `JOIN_LEAVE_WEBHOOK` | `false` | Post join/leave/move events to Discord |
+| `JOIN_LEAVE_WEBHOOK_URL` | *(blank)* | Discord webhook for join/leave/move events |
+| `MIRROR_COMMAND_RESULTS_TO_DISCORD` | `true` | Mirror command results to Discord, including `#help` |
 | `AFK_AWAY_THRESHOLD_MINUTES` | `5` | Minutes before away is treated as AFK |
 | `EXCLUDED_CHANNELS` | *(blank)* | Comma-separated channel IDs to skip tracking |
 | `BOT_NICKNAMES` | `UC Stats Bot,serveradmin` | Nicknames to never track |
 | `POLL_INTERVAL_MS` | `60000` | How often to check online clients (ms) |
 | `WEB_PORT` | `3000` | Port the app listens on inside the container |
-| `HOST_WEB_PORT` | `3010` | Port exposed on your Windows PC |
+| `HOST_WEB_PORT` | `3000` | Port exposed on your Windows PC |
 | `TZ` | `UTC` | Timezone for cron labels |
 | `COMMAND_PREFIX` | `#` | Prefix for chat commands |
 | `DEBUG_RAW_TS3` | `false` | Print raw ServerQuery text-message traffic |
@@ -337,7 +340,7 @@ Test-NetConnection -ComputerName 127.0.0.1 -Port 10011
 
 ### Web dashboard is blank / shows no data
 
-1. Visit http://localhost:3010/api/leaderboard in your browser
+1. Visit http://localhost:3000/api/leaderboard in your browser
 2. If it returns `[]` — no data yet. Wait for the next poll (up to 1 minute).
 3. If it returns an error — check bot logs: `docker logs uc-stats-bot`
 

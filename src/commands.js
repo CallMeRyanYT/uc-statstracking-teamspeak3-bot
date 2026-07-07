@@ -44,28 +44,25 @@ function rankEmoji(i) {
 async function cmdHelp() {
   const p = PREFIX;
   return [
-    "═══════════════════════════════",
-    "  📊 UC Stats Bot — Commands",
-    "═══════════════════════════════",
-    `${p}stats [name]   — Your full stats card (or someone else's)`,
-    `${p}rank [name]    — Your leaderboard rank`,
-    `${p}top            — All-time top 10`,
-    `${p}today          — Today's top 10`,
-    `${p}week           — This week's top 10`,
-    `${p}month          — This month's top 10`,
-    `${p}online         — Currently online users`,
-    `${p}session        — Your current session time`,
-    `${p}peak           — Your most active hours`,
-    `${p}channels       — Your top channels`,
-    `${p}history        — Your last 5 sessions`,
-    `${p}afk [name]     — AFK time stats`,
-    `${p}server         — Server-wide stats`,
-    `${p}help           — This message`,
-    "═══════════════════════════════",
+    "[b]UC Stats Bot - Commands[/b]",
+    "-----------------------------",
+    `${p}stats [name]   - Your full stats card, or someone else's`,
+    `${p}rank [name]    - Your leaderboard rank`,
+    `${p}top            - All-time top 10`,
+    `${p}leaderboard    - Same as ${p}top`,
+    `${p}today          - Today's top 10`,
+    `${p}week           - This week's top 10`,
+    `${p}month          - This month's top 10`,
+    `${p}online         - Currently online users`,
+    `${p}session        - Your current session time`,
+    `${p}peak           - Your most active hours`,
+    `${p}channels       - Your top channels`,
+    `${p}history        - Your last 5 sessions`,
+    `${p}afk [name]     - AFK time stats`,
+    `${p}server         - Server-wide stats`,
+    `${p}help           - This message`,
   ].join("\n");
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // !stats [name]
 // ─────────────────────────────────────────────────────────────────────────────
 async function cmdStats(args, senderUid) {

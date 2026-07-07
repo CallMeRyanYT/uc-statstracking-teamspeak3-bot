@@ -170,13 +170,17 @@ if ($runWizard) {
 
     Write-Host ""
     Write-Host "--- Discord Webhook ---" -ForegroundColor Cyan
-    $webhook   = Read-Val "Discord webhook URL"          (Get-EnvVal $lines "DISCORD_WEBHOOK_URL" "")
-    $jlwh      = Read-Val "Post join/leave to Discord (true/false)" (Get-EnvVal $lines "JOIN_LEAVE_WEBHOOK" "false")
+    $webhook   = Read-Val "Report webhook URL"           (Get-EnvVal $lines "DISCORD_WEBHOOK_URL" "")
+    $cmdhook   = Read-Val "Command webhook URL (blank = report webhook)" (Get-EnvVal $lines "COMMAND_WEBHOOK_URL" "")
+    $helphook  = Read-Val "#help webhook URL (blank = command webhook)" (Get-EnvVal $lines "HELP_WEBHOOK_URL" "")
+    $jlwh      = Read-Val "Post join/leave/move to Discord (true/false)" (Get-EnvVal $lines "JOIN_LEAVE_WEBHOOK" "false")
+    $jlhook    = Read-Val "Join/leave/move webhook URL"  (Get-EnvVal $lines "JOIN_LEAVE_WEBHOOK_URL" "")
 
     Write-Host ""
     Write-Host "--- Tracking Settings ---" -ForegroundColor Cyan
     $afkMin    = Read-Val "AFK pause threshold in minutes" (Get-EnvVal $lines "AFK_AWAY_THRESHOLD_MINUTES" "5")
     $webport   = Read-Val "Web dashboard port"             (Get-EnvVal $lines "WEB_PORT" "3000")
+    $hostport  = Read-Val "Windows dashboard port"         (Get-EnvVal $lines "HOST_WEB_PORT" "3000")
     $tz        = Read-Val "Timezone (e.g. UTC, Europe/Helsinki)" (Get-EnvVal $lines "TZ" "UTC")
 
     $lines = Set-EnvVal $lines "TS3_HOST"                    $ts3Host
@@ -185,9 +189,13 @@ if ($runWizard) {
     $lines = Set-EnvVal $lines "TS3_QUERY_PASS"              $qpass
     $lines = Set-EnvVal $lines "TS3_BOT_NICKNAME"            $botnick
     $lines = Set-EnvVal $lines "DISCORD_WEBHOOK_URL"         $webhook
+    $lines = Set-EnvVal $lines "COMMAND_WEBHOOK_URL"         $cmdhook
+    $lines = Set-EnvVal $lines "HELP_WEBHOOK_URL"            $helphook
     $lines = Set-EnvVal $lines "JOIN_LEAVE_WEBHOOK"          $jlwh
+    $lines = Set-EnvVal $lines "JOIN_LEAVE_WEBHOOK_URL"      $jlhook
     $lines = Set-EnvVal $lines "AFK_AWAY_THRESHOLD_MINUTES"  $afkMin
     $lines = Set-EnvVal $lines "WEB_PORT"                    $webport
+    $lines = Set-EnvVal $lines "HOST_WEB_PORT"               $hostport
     $lines = Set-EnvVal $lines "TZ"                          $tz
 
     $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false

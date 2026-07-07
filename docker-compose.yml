@@ -19,7 +19,10 @@ services:
       - TS3_CONNECT_TIMEOUT_MS=${TS3_CONNECT_TIMEOUT_MS:-10000}
       - TS3_BOT_NICKNAME=${TS3_BOT_NICKNAME:-UC Stats Bot}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - COMMAND_WEBHOOK_URL=${COMMAND_WEBHOOK_URL:-}
+      - HELP_WEBHOOK_URL=${HELP_WEBHOOK_URL:-}
       - JOIN_LEAVE_WEBHOOK=${JOIN_LEAVE_WEBHOOK:-false}
+      - JOIN_LEAVE_WEBHOOK_URL=${JOIN_LEAVE_WEBHOOK_URL:-}
       - MIRROR_COMMAND_RESULTS_TO_DISCORD=${MIRROR_COMMAND_RESULTS_TO_DISCORD:-true}
       - AFK_AWAY_THRESHOLD_MINUTES=${AFK_AWAY_THRESHOLD_MINUTES:-5}
       - EXCLUDED_CHANNELS=${EXCLUDED_CHANNELS:-}
@@ -33,9 +36,8 @@ services:
       # Persist the SQLite database across container restarts
       - stats_data:/app/data
     ports:
-      # Web dashboard on Windows. Defaults to http://localhost:3010 so it
-      # does not collide with other local apps using localhost:3000.
-      - "${HOST_WEB_PORT:-3010}:${WEB_PORT:-3000}"
+      # Web dashboard on Windows. Defaults to http://localhost:3000.
+      - "${HOST_WEB_PORT:-3000}:${WEB_PORT:-3000}"
     # Allows the container to reach services on the HOST machine
     # (your TS3 server running on the same PC) via host.docker.internal
     extra_hosts:

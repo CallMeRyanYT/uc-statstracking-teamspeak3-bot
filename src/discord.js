@@ -9,29 +9,73 @@ const db = require("./database");
 const { getActiveSessions } = require("./tracker");
 const { fmtHours } = require("./commands");
 
-const WEBHOOK_URL =
-  process.env.DISCORD_WEBHOOK_URL ||
-  "https://discord.com/api/webhooks/1521648074139762829/U0axTr9CMsHLZEQ230HHTMk1kadu5whbBzqYbZkW8xmzQzsu6las6CkBNia9e7eiRc5h";
+const REPORT_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || "";
+const COMMAND_WEBHOOK_URL =
+  process.env.COMMAND_WEBHOOK_URL || REPORT_WEBHOOK_URL;
+const HELP_WEBHOOK_URL = process.env.HELP_WEBHOOK_URL || COMMAND_WEBHOOK_URL;
+const JOIN_LEAVE_WEBHOOK_URL = process.env.JOIN_LEAVE_WEBHOOK_URL || "";
+const JOIN_LEAVE_ENABLED = process.env.JOIN_LEAVE_WEBHOOK === "true";
 
-async function postWebhook(content) {
-  if (!WEBHOOK_URL) {
-    console.warn("[Discord] No webhook URL configured — skipping.");
+function sanitizeDiscordText(text) {
+  return String(text || "")
+    .replace(/@/g, "@\u200b")
+    .replace(/\[b\]/gi, "**")
+    .replace(/\[\/b\]/gi, "**")
+    .replace(/\[i\]/gi, "*")
+    .replace(/\[\/i\]/gi, "*")
+    .replace(/\[u\]/gi, "__")
+    .replace(/\[\/u\]/gi, "__")
+    .replace(/```/g, "`\u200b``");
+}
+
+function truncateDiscordMessage(content) {
+  if (content.length <= 1950) return content;
+  return `${content.slice(0, 1947)}...`;
+}
+
+async function postWebhook(
+  content,
+  webhookUrl = REPORT_WEBHOOK_URL,
+  label = "report",
+) {
+  if (!webhookUrl) {
+    console.warn(`[Discord] No ${label} webhook URL configured; skipping.`);
     return;
   }
+
   try {
-    await axios.post(WEBHOOK_URL, { content }, { timeout: 10_000 });
-    console.log(`[Discord] Webhook sent (${content.length} chars).`);
+    await axios.post(webhookUrl, { content }, { timeout: 10_000 });
+    console.log(`[Discord] ${label} webhook sent (${content.length} chars).`);
   } catch (err) {
     console.error(
-      "[Discord] Webhook error:",
+      `[Discord] ${label} webhook error:`,
       err.response?.data || err.message,
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Hourly report — top 10 all-time + currently online count
-// ─────────────────────────────────────────────────────────────────────────────
+async function sendCommandResultNotification(
+  commandName,
+  text,
+  reply,
+  invokerNick,
+) {
+  if (process.env.MIRROR_COMMAND_RESULTS_TO_DISCORD === "false") return;
+  if (!commandName || !reply) return;
+
+  const isHelp = commandName === "help";
+  const webhookUrl = isHelp ? HELP_WEBHOOK_URL : COMMAND_WEBHOOK_URL;
+  const label = isHelp ? "help" : "command";
+  const discordMsg = [
+    `**${sanitizeDiscordText(invokerNick)}** used \`${sanitizeDiscordText(text)}\` in TeamSpeak`,
+    "",
+    sanitizeDiscordText(reply),
+  ].join("\n");
+
+  await postWebhook(truncateDiscordMessage(discordMsg), webhookUrl, label);
+}
+
+// Hourly report - top 10 all-time + currently online count
 async function sendHourlyReport() {
   const rows = await db.allAsync(
     "SELECT username, total_time FROM users WHERE total_time > 0 ORDER BY total_time DESC LIMIT 10",
@@ -164,21 +208,36 @@ async function sendWeeklyReport() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Join/Leave notification (optional — controlled by JOIN_LEAVE_WEBHOOK env)
 // ─────────────────────────────────────────────────────────────────────────────
-async function sendJoinNotification(username, channelName) {
-  if (process.env.JOIN_LEAVE_WEBHOOK !== "true") return;
-  await postWebhook(`🟢 **${username}** joined **${channelName}**`);
+async function postActivityWebhook(content) {
+  if (!JOIN_LEAVE_ENABLED) return;
+  await postWebhook(content, JOIN_LEAVE_WEBHOOK_URL, "join/leave");
 }
 
-async function sendLeaveNotification(username) {
-  if (process.env.JOIN_LEAVE_WEBHOOK !== "true") return;
-  await postWebhook(`🔴 **${username}** left the server`);
+async function sendJoinNotification(username, channelName) {
+  await postActivityWebhook(
+    `**${sanitizeDiscordText(username)}** joined **${sanitizeDiscordText(channelName || "Unknown channel")}**`,
+  );
+}
+
+async function sendLeaveNotification(username, channelName) {
+  await postActivityWebhook(
+    `**${sanitizeDiscordText(username)}** left **${sanitizeDiscordText(channelName || "the server")}**`,
+  );
+}
+
+async function sendMoveNotification(username, fromChannel, toChannel) {
+  await postActivityWebhook(
+    `**${sanitizeDiscordText(username)}** moved from **${sanitizeDiscordText(fromChannel || "Unknown channel")}** to **${sanitizeDiscordText(toChannel || "Unknown channel")}**`,
+  );
 }
 
 module.exports = {
   postWebhook,
+  sendCommandResultNotification,
   sendHourlyReport,
   sendDailyReport,
   sendWeeklyReport,
   sendJoinNotification,
   sendLeaveNotification,
+  sendMoveNotification,
 };

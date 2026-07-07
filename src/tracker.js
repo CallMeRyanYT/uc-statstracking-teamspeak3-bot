@@ -40,13 +40,16 @@ const EXCLUDED_CHANNELS = (process.env.EXCLUDED_CHANNELS || "")
 // ---------------------------------------------------------------------------
 function shouldTrackClient(client) {
   // Skip ServerQuery/admin clients (type 0)
-  if (client.type === 0) return false;
+  const clientType = client.type ?? client.clientType ?? client.client_type;
+  if (String(clientType) === "0") return false;
+  if (!client.uniqueIdentifier || !client.nickname) return false;
 
   const nick = (client.nickname || "").toLowerCase();
   if (BOT_NICKNAMES.some((b) => nick.includes(b))) return false;
 
   // channelId can be a number or string depending on library version
   const cid = String(client.channelId || client.cid || "");
+  if (!cid) return false;
   if (EXCLUDED_CHANNELS.includes(cid)) return false;
 
   return true;
@@ -158,10 +161,14 @@ async function processClientTick(client, channelMap) {
     const sess = activeSessions.get(uid);
     if (sess.channelId !== channelId) {
       // User moved channels
+      const previousChannelName = sess.channelName;
       await logEvent(uid, username, "move", channelId, channelName, now);
       sess.channelId = channelId;
       sess.channelName = channelName;
       visitedChannel = true;
+      require("./discord")
+        .sendMoveNotification(username, previousChannelName, channelName)
+        .catch(() => {});
     }
   }
 
@@ -228,6 +235,42 @@ async function processClientTick(client, channelMap) {
 // ---------------------------------------------------------------------------
 let _prevOnlineUIDs = new Set();
 
+async function clearRuntimeOnlineState() {
+  const nowIso = new Date().toISOString();
+  activeSessions.clear();
+  _prevOnlineUIDs = new Set();
+
+  await db.runAsync(
+    `UPDATE sessions
+        SET session_end = ?,
+            duration_hours = CASE
+              WHEN julianday(?) > julianday(session_start)
+              THEN (julianday(?) - julianday(session_start)) * 24
+              ELSE 0
+            END
+      WHERE session_end IS NULL`,
+    [nowIso, nowIso, nowIso],
+  );
+
+  const result = await db.runAsync(
+    `UPDATE users SET
+       is_online = 0,
+       is_afk = 0,
+       away_since = NULL,
+       muted_since = NULL,
+       current_channel = NULL
+     WHERE is_online = 1
+        OR is_afk = 1
+        OR away_since IS NOT NULL
+        OR muted_since IS NOT NULL
+        OR current_channel IS NOT NULL`,
+  );
+
+  if (result.changes) {
+    console.log(`[Tracker] Cleared ${result.changes} stale online user(s).`);
+  }
+}
+
 async function reconcileOfflineClients(currentClients) {
   const currentUIDs = new Set(
     currentClients.filter(shouldTrackClient).map((c) => c.uniqueIdentifier),
@@ -268,6 +311,9 @@ async function handleClientLeft(uid, username) {
       sess.channelName,
       now,
     );
+    require("./discord")
+      .sendLeaveNotification(username, sess.channelName)
+      .catch(() => {});
     activeSessions.delete(uid);
   }
 
@@ -332,4 +378,5 @@ module.exports = {
   resetWeeklyTimes,
   resetMonthlyTimes,
   getActiveSessions,
+  clearRuntimeOnlineState,
 };

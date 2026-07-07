@@ -21,10 +21,11 @@ const {
   resetWeeklyTimes,
   resetMonthlyTimes,
   getActiveSessions,
+  clearRuntimeOnlineState,
 } = require("./tracker");
 const { handleMessage } = require("./commands");
 const {
-  postWebhook,
+  sendCommandResultNotification,
   sendHourlyReport,
   sendDailyReport,
   sendWeeklyReport,
@@ -83,11 +84,13 @@ const TS3_BOT_NICK = process.env.TS3_BOT_NICKNAME || "UC Stats Bot";
 const TS3_SERVER_ID = parsePositiveInt(process.env.TS3_SERVER_ID, 1);
 const TS3_SERVER_PORT = parsePositiveInt(process.env.TS3_SERVER_PORT, 9987);
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || "#";
-const MIRROR_COMMAND_RESULTS =
-  process.env.MIRROR_COMMAND_RESULTS_TO_DISCORD !== "false";
 const DEBUG_RAW_TS3 = process.env.DEBUG_RAW_TS3 === "true";
 const POLL_MS = parsePositiveInt(process.env.POLL_INTERVAL_MS, 60_000);
 const WEB_PORT = parsePositiveInt(process.env.WEB_PORT, 3000);
+const TS3_MESSAGE_MAX_LENGTH = parsePositiveInt(
+  process.env.TS3_MESSAGE_MAX_LENGTH,
+  900,
+);
 const TS3_CONNECT_TIMEOUT_MS = parsePositiveInt(
   process.env.TS3_CONNECT_TIMEOUT_MS,
   10_000,
@@ -465,60 +468,64 @@ function parseCommandName(rawText) {
   return commandText.split(/\s+/, 1)[0].toLowerCase();
 }
 
-function sanitizeDiscordText(text) {
-  return String(text)
-    .replace(/@/g, "@\u200b")
-    .replace(/\[b\]/gi, "**")
-    .replace(/\[\/b\]/gi, "**")
-    .replace(/\[i\]/gi, "*")
-    .replace(/\[\/i\]/gi, "*")
-    .replace(/\[u\]/gi, "__")
-    .replace(/\[\/u\]/gi, "__")
-    .replace(/```/g, "`\u200b``");
+function splitTeamSpeakMessage(message) {
+  const chunks = [];
+  let current = "";
+
+  for (const line of String(message).split("\n")) {
+    const pieces = [];
+    for (let i = 0; i < line.length; i += TS3_MESSAGE_MAX_LENGTH) {
+      pieces.push(line.slice(i, i + TS3_MESSAGE_MAX_LENGTH));
+    }
+    if (pieces.length === 0) pieces.push("");
+
+    for (const piece of pieces) {
+      const next = current ? `${current}\n${piece}` : piece;
+      if (next.length > TS3_MESSAGE_MAX_LENGTH && current) {
+        chunks.push(current);
+        current = piece;
+      } else {
+        current = next;
+      }
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : [""];
 }
 
-function truncateDiscordMessage(content) {
-  if (content.length <= 1950) return content;
-  return `${content.slice(0, 1947)}...`;
+async function sendChunkedTextMessage(targetId, targetMode, reply) {
+  for (const chunk of splitTeamSpeakMessage(reply)) {
+    await ts3.sendTextMessage(String(targetId), targetMode, chunk);
+  }
 }
 
-async function mirrorCommandResultToDiscord(commandName, text, reply, invokerNick) {
-  if (!MIRROR_COMMAND_RESULTS || commandName === "help") return;
-
-  const discordMsg = [
-    `**${sanitizeDiscordText(invokerNick)}** used \`${sanitizeDiscordText(text)}\` in TeamSpeak`,
-    "",
-    sanitizeDiscordText(reply),
-  ].join("\n");
-
-  await postWebhook(truncateDiscordMessage(discordMsg)).catch((e) =>
-    console.error("[Raw] Discord error:", e.message),
-  );
-}
-
-async function sendTeamSpeakReply(invokerClid, targetmode, reply) {
+async function sendTeamSpeakReply(invokerClid, targetmode, targetId, reply) {
   if (!ts3) throw new Error("TS3 connection is not ready");
 
   if (targetmode === 1) {
-    await ts3.sendTextMessage(invokerClid, 1, reply);
+    await sendChunkedTextMessage(invokerClid, 1, reply);
     return `private:${invokerClid}`;
   }
 
   if (targetmode === 3) {
-    await ts3.sendTextMessage("0", 3, reply);
+    await sendChunkedTextMessage("0", 3, reply);
     return "server";
   }
 
-  const info = await ts3.clientInfo(invokerClid).catch(() => null);
-  const channelId =
-    info && (info.cid || info.channelId || info.clientChannelId);
+  let channelId = targetId ? String(targetId) : "";
+  if (!channelId) {
+    const info = await ts3.clientInfo(invokerClid).catch(() => null);
+    channelId =
+      info && String(info.cid || info.channelId || info.clientChannelId || "");
+  }
 
   if (channelId) {
-    await ts3.sendTextMessage(channelId, 2, reply);
+    await sendChunkedTextMessage(channelId, 2, reply);
     return `channel:${channelId}`;
   }
 
-  await ts3.sendTextMessage(invokerClid, 1, reply);
+  await sendChunkedTextMessage(invokerClid, 1, reply);
   return `private:${invokerClid}`;
 }
 
@@ -531,6 +538,7 @@ function parseAndHandleText(line) {
   const invokerUid = params.invokeruid || "";
   const invokerNick = params.invokername || "Unknown";
   const targetmode = parseInt(params.targetmode) || 2;
+  const targetId = params.target || "";
 
   if (!invokerClid || !invokerUid) return;
 
@@ -542,10 +550,20 @@ function parseAndHandleText(line) {
       const reply = await handleMessage(text, invokerUid, invokerNick);
       if (!reply) return;
 
-      const target = await sendTeamSpeakReply(invokerClid, targetmode, reply);
+      const target = await sendTeamSpeakReply(
+        invokerClid,
+        targetmode,
+        targetId,
+        reply,
+      );
       console.log(`[Raw] Response sent (${target})`);
 
-      await mirrorCommandResultToDiscord(commandName, text, reply, invokerNick);
+      await sendCommandResultNotification(
+        commandName,
+        text,
+        reply,
+        invokerNick,
+      ).catch((e) => console.error("[Raw] Discord error:", e.message));
     } catch (e) {
       console.error("[Raw] Handler error:", e.message);
     }
@@ -720,4 +738,11 @@ console.log(
 console.log(`   Web Dashboard : http://localhost:${WEB_PORT}`);
 console.log("===================================================");
 
-connectTS3();
+async function boot() {
+  await clearRuntimeOnlineState().catch((err) => {
+    console.error("[Tracker] Startup cleanup failed:", err.message);
+  });
+  connectTS3();
+}
+
+boot();
