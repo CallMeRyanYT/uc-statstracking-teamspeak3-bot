@@ -134,6 +134,41 @@ function Read-Secret {
     return $plain
 }
 
+function Read-DiscordWebhook {
+    param([string]$Current)
+    if ([string]::IsNullOrWhiteSpace($Current)) {
+        $display = "<blank>"
+    } else {
+        $display = "configured (press Enter to keep, or type: clear)"
+    }
+
+    Write-Host "  Copy the webhook URL, then press Enter here to use your clipboard." -ForegroundColor Gray
+    Write-Host "  You can also paste/type it directly. It will be saved only in .env." -ForegroundColor Gray
+    $value = Read-Host "Discord webhook URL [$display]"
+
+    if ($value -ieq "clear") {
+        return ""
+    }
+    if (-not [string]::IsNullOrWhiteSpace($value)) {
+        return $value.Trim()
+    }
+
+    try {
+        $clipboard = Get-Clipboard -Raw -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($clipboard)) {
+            $candidate = $clipboard.Trim()
+            if ($candidate -match '^https?://') {
+                Write-Host "  Using webhook URL from clipboard." -ForegroundColor Green
+                return $candidate
+            }
+        }
+    } catch {
+        # Clipboard support is not available in every PowerShell host.
+    }
+
+    return $Current
+}
+
 $createdNew = $false
 if (-not (Test-Path $envFile)) {
     Copy-Item $envTemplate $envFile
@@ -171,9 +206,9 @@ if ($runWizard) {
 
     Write-Host ""
     Write-Host "--- Discord Statistics ---" -ForegroundColor Cyan
-    Write-Host "  Create a webhook in Discord channel settings, then paste its URL." -ForegroundColor Gray
+    Write-Host "  Create a webhook in Discord channel settings and copy its URL." -ForegroundColor Gray
     Write-Host "  The URL is a secret and is stored only in your local .env file." -ForegroundColor Gray
-    $discordWebhook = Read-Secret "Discord webhook URL (blank = disabled)" (Get-EnvVal $lines "DISCORD_WEBHOOK_URL" "")
+    $discordWebhook = Read-DiscordWebhook (Get-EnvVal $lines "DISCORD_WEBHOOK_URL" "")
     $discordInterval = Read-Val "Automatic report interval in minutes" (Get-EnvVal $lines "DISCORD_REPORT_INTERVAL_MINUTES" "60")
 
     Write-Host ""

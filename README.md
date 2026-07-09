@@ -62,7 +62,7 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 1. In Discord, open the destination channel.
 2. Open **Edit Channel > Integrations > Webhooks**.
 3. Create a webhook and copy its URL.
-4. Run `.\setup.ps1` again, choose to update configuration, and paste the URL at the hidden webhook prompt.
+4. Run `.\setup.ps1` again, choose to update configuration, copy the URL, and press Enter at the webhook prompt. The wizard reads it from your clipboard without displaying it.
 5. Choose the automatic report interval. The default is 60 minutes and the minimum is 5 minutes.
 6. Rebuild and start:
 
