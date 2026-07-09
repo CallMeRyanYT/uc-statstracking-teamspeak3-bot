@@ -14,6 +14,8 @@ const express = require("express");
 const path = require("path");
 
 const db = require("./database");
+const { TeamSpeakAdminAuth } = require("./admin-auth");
+const { createDiscordReporter } = require("./discord");
 const {
   processClientTick,
   reconcileOfflineClients,
@@ -23,6 +25,8 @@ const {
   getActiveSessions,
   clearRuntimeOnlineState,
   purgeIgnoredUsers,
+  resetUserTrackingData,
+  resetAllTrackingData,
 } = require("./tracker");
 
 // ---------------------------------------------------------------------------
@@ -79,6 +83,12 @@ const TS3_SERVER_ID = parsePositiveInt(process.env.TS3_SERVER_ID, 1);
 const TS3_SERVER_PORT = parsePositiveInt(process.env.TS3_SERVER_PORT, 9987);
 const POLL_MS = parsePositiveInt(process.env.POLL_INTERVAL_MS, 60_000);
 const WEB_PORT = parsePositiveInt(process.env.WEB_PORT, 3000);
+const HOST_WEB_PORT = parsePositiveInt(process.env.HOST_WEB_PORT, WEB_PORT);
+const ADMIN_PORT = parsePositiveInt(process.env.ADMIN_PORT, 3001);
+const HOST_ADMIN_PORT = parsePositiveInt(
+  process.env.HOST_ADMIN_PORT,
+  ADMIN_PORT,
+);
 const TS3_CONNECT_TIMEOUT_MS = parsePositiveInt(
   process.env.TS3_CONNECT_TIMEOUT_MS,
   10_000,
@@ -90,6 +100,17 @@ let isConnected = false;
 let reconnectTimer = null;
 let lastPollStats = null;
 let lastPollLogKey = "";
+let pollPromise = null;
+let maintenanceQueue = Promise.resolve();
+
+const adminAuth = new TeamSpeakAdminAuth({
+  adminGroupIds: process.env.TS3_ADMIN_GROUP_IDS || "6",
+});
+const discordReporter = createDiscordReporter({
+  db,
+  webhookUrl: process.env.DISCORD_WEBHOOK_URL,
+  intervalMinutes: process.env.DISCORD_REPORT_INTERVAL_MINUTES,
+});
 
 function checkTcpReachable(host, port, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -121,7 +142,215 @@ function checkTcpReachable(host, port, timeoutMs) {
 // Express web dashboard
 // ---------------------------------------------------------------------------
 const app = express();
+app.set("trust proxy", 1);
+app.use(express.json({ limit: "16kb" }));
 app.use(express.static(path.join(__dirname, "../web")));
+
+const ADMIN_COOKIE = "uc_admin_session";
+
+function asyncRoute(handler) {
+  return (req, res, next) => {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  };
+}
+
+function getCookie(req, name) {
+  const raw = req.headers.cookie || "";
+  for (const item of raw.split(";")) {
+    const separator = item.indexOf("=");
+    if (separator === -1) continue;
+    const key = item.slice(0, separator).trim();
+    if (key === name) return decodeURIComponent(item.slice(separator + 1));
+  }
+  return null;
+}
+
+function getExpectedRequestHost(req) {
+  const forwarded = req.get("x-forwarded-host");
+  return (forwarded || req.get("host") || "").split(",")[0].trim();
+}
+
+function requireSameOriginJson(req, res, next) {
+  if (!req.is("application/json")) {
+    return res.status(415).json({ error: "application/json is required" });
+  }
+
+  const origin = req.get("origin");
+  try {
+    if (!origin || new URL(origin).host !== getExpectedRequestHost(req)) {
+      return res.status(403).json({ error: "Request origin is not allowed" });
+    }
+  } catch {
+    return res.status(403).json({ error: "Request origin is not allowed" });
+  }
+
+  next();
+}
+
+function setAdminSessionCookie(req, res, token) {
+  const forwardedProto = (req.get("x-forwarded-proto") || "")
+    .split(",")[0]
+    .trim();
+  const secure = req.secure || forwardedProto === "https";
+  const parts = [
+    `${ADMIN_COOKIE}=${encodeURIComponent(token)}`,
+    "HttpOnly",
+    "SameSite=Strict",
+    "Path=/",
+    "Max-Age=3600",
+  ];
+  if (secure) parts.push("Secure");
+  res.setHeader("Set-Cookie", parts.join("; "));
+}
+
+function clearAdminSessionCookie(req, res) {
+  const forwardedProto = (req.get("x-forwarded-proto") || "")
+    .split(",")[0]
+    .trim();
+  const parts = [
+    `${ADMIN_COOKIE}=`,
+    "HttpOnly",
+    "SameSite=Strict",
+    "Path=/",
+    "Max-Age=0",
+  ];
+  if (req.secure || forwardedProto === "https") parts.push("Secure");
+  res.setHeader("Set-Cookie", parts.join("; "));
+}
+
+function getRemoteAdminSession(req) {
+  return adminAuth.getSession(getCookie(req, ADMIN_COOKIE));
+}
+
+function requireRemoteAdmin(req, res, next) {
+  const session = getRemoteAdminSession(req);
+  if (!session) {
+    return res.status(401).json({ error: "Server Admin verification required" });
+  }
+  res.locals.adminActor = `TeamSpeak admin ${session.username} (${session.uid})`;
+  res.locals.adminSession = session;
+  next();
+}
+
+app.get("/api/config", (_req, res) => {
+  res.json({
+    admin_port: HOST_ADMIN_PORT,
+    discord_configured: discordReporter.configured,
+    remote_admin_available: true,
+  });
+});
+
+app.get(
+  "/api/admin/status",
+  asyncRoute(async (req, res) => {
+    const session = getRemoteAdminSession(req);
+    res.json({
+      authorized: Boolean(session),
+      mode: session ? "teamspeak" : null,
+      username: session ? session.username : null,
+      ts3_connected: isConnected,
+      discord: session
+        ? await discordReporter.getStatus()
+        : { configured: discordReporter.configured },
+    });
+  }),
+);
+
+app.post("/api/admin/challenge", requireSameOriginJson, (req, res) => {
+  if (!isConnected) {
+    return res.status(503).json({
+      error: "TeamSpeak must be connected before a Server Admin can verify.",
+    });
+  }
+  res.status(201).json(adminAuth.createChallenge());
+});
+
+app.post(
+  "/api/admin/verify",
+  requireSameOriginJson,
+  asyncRoute(async (req, res) => {
+    if (!isConnected || !ts3) {
+      return res.status(503).json({ error: "TeamSpeak is not connected." });
+    }
+
+    const clients = await ts3.clientList({ clientType: 0 });
+    adminAuth.updateClients(clients);
+    const result = adminAuth.verifyChallenge(req.body.challengeId);
+    if (!result.ok) return res.status(403).json({ error: result.reason });
+
+    setAdminSessionCookie(req, res, result.token);
+    res.json({
+      authorized: true,
+      mode: "teamspeak",
+      username: result.username,
+      expires_at: result.expiresAt,
+    });
+  }),
+);
+
+app.post("/api/admin/logout", requireSameOriginJson, (req, res) => {
+  adminAuth.revoke(getCookie(req, ADMIN_COOKIE));
+  clearAdminSessionCookie(req, res);
+  res.json({ ok: true });
+});
+
+async function resetUserHandler(req, res) {
+  const uid = String(req.params.uid || "");
+  if (!uid || req.body.uid !== uid) {
+    return res.status(400).json({ error: "User confirmation did not match." });
+  }
+
+  const user = await runTrackingMaintenance(() => resetUserTrackingData(uid));
+  if (!user) return res.status(404).json({ error: "User not found." });
+
+  console.log(
+    `[Admin] ${res.locals.adminActor || "Local host"} reset ${user.username} (${uid}).`,
+  );
+  res.json({ ok: true, user });
+}
+
+async function resetAllHandler(req, res) {
+  if (req.body.confirm !== "RESET") {
+    return res.status(400).json({ error: "Type RESET to confirm." });
+  }
+
+  const deleted = await runTrackingMaintenance(resetAllTrackingData);
+  lastPollStats = null;
+  console.log(
+    `[Admin] ${res.locals.adminActor || "Local host"} reset all tracked data.`,
+  );
+  res.json({ ok: true, deleted });
+}
+
+async function sendDiscordHandler(_req, res) {
+  if (!discordReporter.configured) {
+    return res.status(400).json({ error: "Discord webhook is not configured." });
+  }
+  const result = await discordReporter.sendNow();
+  console.log(
+    `[Admin] ${res.locals.adminActor || "Local host"} sent a Discord report.`,
+  );
+  res.json({ ok: true, ...result });
+}
+
+app.delete(
+  "/api/admin/users/:uid",
+  requireSameOriginJson,
+  requireRemoteAdmin,
+  asyncRoute(resetUserHandler),
+);
+app.delete(
+  "/api/admin/data",
+  requireSameOriginJson,
+  requireRemoteAdmin,
+  asyncRoute(resetAllHandler),
+);
+app.post(
+  "/api/admin/discord/report",
+  requireSameOriginJson,
+  requireRemoteAdmin,
+  asyncRoute(sendDiscordHandler),
+);
 
 // All-time leaderboard
 app.get("/api/leaderboard", async (_req, res) => {
@@ -213,9 +442,9 @@ app.get("/api/server", async (_req, res) => {
   try {
     const stats = await db.getAsync(
       `SELECT COUNT(*) AS users,
-              SUM(total_time)    AS total_hours,
-              SUM(session_count) AS total_sessions
-       FROM users`,
+               SUM(total_time)    AS total_hours,
+               (SELECT COUNT(*) FROM sessions) AS total_sessions
+        FROM users`,
     );
     res.json({
       users: stats && stats.users ? stats.users : 0,
@@ -272,16 +501,97 @@ app.get("/api/health", (_req, res) => {
     ts3_host: TS3_HOST,
     ts3_query_port: TS3_QUERY_PORT,
     poll_interval_ms: POLL_MS,
+    discord_configured: discordReporter.configured,
     uptime_seconds: Math.round(process.uptime()),
   });
 });
+
+const localAdminApp = express();
+const localDashboardOrigins = new Set(
+  ["localhost", "127.0.0.1"].map(
+    (hostname) => new URL(`http://${hostname}:${HOST_WEB_PORT}`).origin,
+  ),
+);
+
+localAdminApp.use((req, res, next) => {
+  const origin = req.get("origin");
+  if (origin && !localDashboardOrigins.has(origin)) {
+    return res.status(403).json({ error: "Only the local dashboard can use this API." });
+  }
+
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+localAdminApp.use(express.json({ limit: "16kb" }));
+
+function requireLocalJson(req, res, next) {
+  if (!req.is("application/json")) {
+    return res.status(415).json({ error: "application/json is required" });
+  }
+  res.locals.adminActor = "Local host";
+  next();
+}
+
+localAdminApp.get(
+  "/api/admin/status",
+  asyncRoute(async (_req, res) => {
+    res.json({
+      authorized: true,
+      mode: "local",
+      username: "Local host",
+      ts3_connected: isConnected,
+      discord: await discordReporter.getStatus(),
+    });
+  }),
+);
+localAdminApp.delete(
+  "/api/admin/users/:uid",
+  requireLocalJson,
+  asyncRoute(resetUserHandler),
+);
+localAdminApp.delete(
+  "/api/admin/data",
+  requireLocalJson,
+  asyncRoute(resetAllHandler),
+);
+localAdminApp.post(
+  "/api/admin/discord/report",
+  requireLocalJson,
+  asyncRoute(sendDiscordHandler),
+);
+
+function apiErrorHandler(error, _req, res, _next) {
+  console.error("[API] Unhandled error:", error.message);
+  if (res.headersSent) return;
+  const status = Number(error.status || error.statusCode) || 500;
+  res.status(status).json({
+    error: status === 400 ? "Invalid JSON request body." : error.message,
+  });
+}
 
 app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "../web/index.html"));
 });
 
+app.use(apiErrorHandler);
+localAdminApp.use(apiErrorHandler);
+
 app.listen(WEB_PORT, () => {
   console.log(`[Web] Dashboard running at http://localhost:${WEB_PORT}`);
+});
+
+localAdminApp.listen(ADMIN_PORT, "0.0.0.0", () => {
+  console.log(
+    `[Web] Local admin API on http://127.0.0.1:${HOST_ADMIN_PORT} ` +
+      "(loopback only)",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -308,7 +618,11 @@ function handleConnectionLost(reason) {
   if (!isConnected && reconnectTimer) return;
 
   isConnected = false;
+  adminAuth.updateClients([]);
   stopPolling();
+  clearRuntimeOnlineState().catch((error) => {
+    console.error("[Tracker] Connection-loss cleanup failed:", error.message);
+  });
   console.warn(`[TS3] Connection lost${reason ? `: ${reason}` : ""}`);
   scheduleReconnect();
 }
@@ -355,6 +669,7 @@ async function connectTS3() {
     await startPolling();
   } catch (err) {
     isConnected = false;
+    adminAuth.updateClients([]);
     stopPolling();
     console.error("[TS3] Connection failed:", err.message);
     scheduleReconnect();
@@ -364,59 +679,75 @@ async function connectTS3() {
 // ---------------------------------------------------------------------------
 // Polling loop — snapshot all online clients every POLL_MS milliseconds
 // ---------------------------------------------------------------------------
-async function startPolling() {
+async function pollOnce() {
+  if (!isConnected || !ts3) return;
+
+  try {
+    const clients = await ts3.clientList({ clientType: 0 });
+    adminAuth.updateClients(clients);
+
+    const channelList = await ts3.channelList();
+    const channelMap = {};
+    for (const ch of channelList) {
+      const id = String(ch.channelId || ch.cid || "");
+      channelMap[id] = ch.name || id;
+    }
+
+    await reconcileOfflineClients(clients);
+
+    let processedClients = 0;
+    for (const client of clients) {
+      if (await processClientTick(client, channelMap)) processedClients += 1;
+    }
+
+    lastPollStats = {
+      at: new Date().toISOString(),
+      visible_regular_clients: clients.length,
+      tracked_clients: processedClients,
+    };
+
+    const pollLogKey = `${clients.length}:${processedClients}`;
+    if (pollLogKey !== lastPollLogKey) {
+      lastPollLogKey = pollLogKey;
+      console.log(
+        `[Tracker] Poll saw ${clients.length} regular client(s), ` +
+          `tracking ${processedClients}.`,
+      );
+    }
+  } catch (err) {
+    console.error("[Tracker] Poll error:", err.message);
+  }
+}
+
+function triggerPoll() {
+  if (pollPromise) return pollPromise;
+  pollPromise = pollOnce().finally(() => {
+    pollPromise = null;
+  });
+  return pollPromise;
+}
+
+async function startPolling(options = {}) {
   stopPolling();
   console.log(`[Tracker] Polling every ${POLL_MS / 1000}s`);
+  if (options.immediate !== false) await triggerPoll();
+  pollTimer = setInterval(() => {
+    void triggerPoll();
+  }, POLL_MS);
+}
 
-  const poll = async () => {
-    if (!isConnected || !ts3) return;
-
+function runTrackingMaintenance(action) {
+  const run = maintenanceQueue.then(async () => {
+    stopPolling();
+    if (pollPromise) await pollPromise;
     try {
-      const clients = await ts3.clientList({ clientType: 0 });
-
-      // Build channelId -> channelName lookup map
-      const channelList = await ts3.channelList();
-      const channelMap = {};
-      for (const ch of channelList) {
-        // ts3-nodejs-library v3 uses ch.channelId; fallback to ch.cid for safety
-        const id = String(ch.channelId || ch.cid || "");
-        channelMap[id] = ch.name || id;
-      }
-
-      // Mark any clients who left since last poll
-      await reconcileOfflineClients(clients);
-
-      let processedClients = 0;
-
-      // Process each visible client
-      for (const client of clients) {
-        if (await processClientTick(client, channelMap)) {
-          processedClients += 1;
-        }
-      }
-
-      lastPollStats = {
-        at: new Date().toISOString(),
-        visible_regular_clients: clients.length,
-        tracked_clients: processedClients,
-      };
-
-      const pollLogKey = `${clients.length}:${processedClients}`;
-      if (pollLogKey !== lastPollLogKey) {
-        lastPollLogKey = pollLogKey;
-        console.log(
-          `[Tracker] Poll saw ${clients.length} regular client(s), ` +
-            `tracking ${processedClients}.`,
-        );
-      }
-    } catch (err) {
-      console.error("[Tracker] Poll error:", err.message);
+      return await action();
+    } finally {
+      if (isConnected) await startPolling({ immediate: false });
     }
-  };
-
-  // First poll immediately, then on interval
-  await poll();
-  pollTimer = setInterval(poll, POLL_MS);
+  });
+  maintenanceQueue = run.catch(() => {});
+  return run;
 }
 
 // ---------------------------------------------------------------------------
@@ -456,7 +787,18 @@ console.log(
   `   Virtual server: sid=${TS3_SERVER_ID}, voice_port=${TS3_SERVER_PORT}`,
 );
 console.log(`   Web Dashboard : http://localhost:${WEB_PORT}`);
+console.log(`   Local Admin   : http://127.0.0.1:${HOST_ADMIN_PORT}`);
+console.log(
+  `   Discord      : ${discordReporter.configured ? `every ${discordReporter.intervalMinutes}m` : "not configured"}`,
+);
 console.log("===================================================");
+
+function checkScheduledDiscordReport() {
+  if (!discordReporter.configured) return;
+  discordReporter.maybeSend().catch((error) => {
+    console.error("[Discord] Scheduled report failed:", error.message);
+  });
+}
 
 async function boot() {
   await clearRuntimeOnlineState().catch((err) => {
@@ -466,6 +808,8 @@ async function boot() {
     console.error("[Tracker] Ignored-user cleanup failed:", err.message);
   });
   connectTS3();
+  setTimeout(checkScheduledDiscordReport, 15_000);
+  setInterval(checkScheduledDiscordReport, 60_000);
 }
 
 boot();

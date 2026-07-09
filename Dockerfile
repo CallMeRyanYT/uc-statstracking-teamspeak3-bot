@@ -21,7 +21,7 @@ COPY web/ ./web/
 # Data directory for the SQLite database (mounted as a volume)
 RUN mkdir -p /app/data
 
-EXPOSE 3000
+EXPOSE 3000 3001
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/server', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"

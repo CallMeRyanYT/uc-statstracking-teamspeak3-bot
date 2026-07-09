@@ -1,6 +1,6 @@
 # Docker Setup Guide - UC Stats Bot
 
-This guide walks you through installing Docker Desktop on Windows and running the website-only TeamSpeak 3 stats tracker.
+This guide walks you through installing Docker Desktop on Windows and running the TeamSpeak 3 stats tracker, dashboard, local admin controls, and optional Discord reports.
 
 ## Part 1 - Install Docker Desktop
 
@@ -162,6 +162,15 @@ docker compose up -d --build
 
 Your database is stored in the Docker volume `uc_stats_data` and is preserved across rebuilds.
 
+The dashboard uses two published ports by default:
+
+| Port | Access | Purpose |
+| --- | --- | --- |
+| `3000` | Local, LAN, or Cloudflare | Read-only dashboard and verified Server Admin sessions |
+| `3001` | `127.0.0.1` only | Automatic admin access for this Windows laptop |
+
+Do not point Cloudflare at port `3001`.
+
 ## Command Cheat Sheet
 
 | Task | Command |
@@ -190,6 +199,7 @@ That Docker hostname points from the container back to your Windows host. Do not
 All stats are stored locally in the Docker volume. The app only needs:
 
 - A TCP connection to your TS3 ServerQuery port.
+- An optional outbound HTTPS connection to the configured Discord webhook.
 - An optional outbound Cloudflare Tunnel connection for the public dashboard URL.
 
-There are no Discord webhooks and no TS3 chat commands.
+There are no TS3 chat commands. The Discord webhook is stored in `.env`, which is ignored by Git; never commit or publicly share it.

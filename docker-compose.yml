@@ -18,11 +18,17 @@ services:
       - TS3_SERVER_PORT=${TS3_SERVER_PORT:-9987}
       - TS3_CONNECT_TIMEOUT_MS=${TS3_CONNECT_TIMEOUT_MS:-10000}
       - TS3_BOT_NICKNAME=${TS3_BOT_NICKNAME:-UC Stats Bot}
+      - TS3_ADMIN_GROUP_IDS=${TS3_ADMIN_GROUP_IDS:-6}
       - AFK_AWAY_THRESHOLD_MINUTES=${AFK_AWAY_THRESHOLD_MINUTES:-5}
       - EXCLUDED_CHANNELS=${EXCLUDED_CHANNELS:-}
       - BOT_NICKNAMES=${BOT_NICKNAMES:-UC Stats Bot,serveradmin,UC Music Bot,Admonus}
       - POLL_INTERVAL_MS=${POLL_INTERVAL_MS:-60000}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - DISCORD_REPORT_INTERVAL_MINUTES=${DISCORD_REPORT_INTERVAL_MINUTES:-60}
       - WEB_PORT=${WEB_PORT:-3000}
+      - HOST_WEB_PORT=${HOST_WEB_PORT:-3000}
+      - ADMIN_PORT=${ADMIN_PORT:-3001}
+      - HOST_ADMIN_PORT=${HOST_ADMIN_PORT:-3001}
       - TZ=${TZ:-UTC}
     volumes:
       # Persist the SQLite database across container restarts.
@@ -30,6 +36,8 @@ services:
     ports:
       # Web dashboard on Windows. Defaults to http://localhost:3000.
       - "${HOST_WEB_PORT:-3000}:${WEB_PORT:-3000}"
+      # Destructive admin API is reachable only from this Windows laptop.
+      - "127.0.0.1:${HOST_ADMIN_PORT:-3001}:${ADMIN_PORT:-3001}"
     extra_hosts:
       # Allows Docker to reach services running on the Windows host.
       - "host.docker.internal:host-gateway"

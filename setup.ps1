@@ -167,12 +167,21 @@ if ($runWizard) {
     $quser     = Read-Val "ServerQuery username"         (Get-EnvVal $lines "TS3_QUERY_USER" "serveradmin")
     $qpass     = Read-Secret "ServerQuery password"      (Get-EnvVal $lines "TS3_QUERY_PASS" "")
     $botnick   = Read-Val "Bot display name"             (Get-EnvVal $lines "TS3_BOT_NICKNAME" "UC Stats Bot")
+    $adminGroups = Read-Val "Server Admin group IDs (comma-separated)" (Get-EnvVal $lines "TS3_ADMIN_GROUP_IDS" "6")
+
+    Write-Host ""
+    Write-Host "--- Discord Statistics ---" -ForegroundColor Cyan
+    Write-Host "  Create a webhook in Discord channel settings, then paste its URL." -ForegroundColor Gray
+    Write-Host "  The URL is a secret and is stored only in your local .env file." -ForegroundColor Gray
+    $discordWebhook = Read-Secret "Discord webhook URL (blank = disabled)" (Get-EnvVal $lines "DISCORD_WEBHOOK_URL" "")
+    $discordInterval = Read-Val "Automatic report interval in minutes" (Get-EnvVal $lines "DISCORD_REPORT_INTERVAL_MINUTES" "60")
 
     Write-Host ""
     Write-Host "--- Tracking Settings ---" -ForegroundColor Cyan
     $afkMin    = Read-Val "AFK pause threshold in minutes" (Get-EnvVal $lines "AFK_AWAY_THRESHOLD_MINUTES" "5")
     $webport   = Read-Val "Web dashboard port"             (Get-EnvVal $lines "WEB_PORT" "3000")
     $hostport  = Read-Val "Windows dashboard port"         (Get-EnvVal $lines "HOST_WEB_PORT" "3000")
+    $adminport = Read-Val "Local admin port"                (Get-EnvVal $lines "HOST_ADMIN_PORT" "3001")
     $tz        = Read-Val "Timezone (e.g. UTC, Europe/Helsinki)" (Get-EnvVal $lines "TZ" "UTC")
 
     $lines = Set-EnvVal $lines "TS3_HOST"                    $ts3Host
@@ -180,9 +189,14 @@ if ($runWizard) {
     $lines = Set-EnvVal $lines "TS3_QUERY_USER"              $quser
     $lines = Set-EnvVal $lines "TS3_QUERY_PASS"              $qpass
     $lines = Set-EnvVal $lines "TS3_BOT_NICKNAME"            $botnick
+    $lines = Set-EnvVal $lines "TS3_ADMIN_GROUP_IDS"          $adminGroups
+    $lines = Set-EnvVal $lines "DISCORD_WEBHOOK_URL"          $discordWebhook
+    $lines = Set-EnvVal $lines "DISCORD_REPORT_INTERVAL_MINUTES" $discordInterval
     $lines = Set-EnvVal $lines "AFK_AWAY_THRESHOLD_MINUTES"  $afkMin
     $lines = Set-EnvVal $lines "WEB_PORT"                    $webport
     $lines = Set-EnvVal $lines "HOST_WEB_PORT"               $hostport
+    $lines = Set-EnvVal $lines "ADMIN_PORT"                  "3001"
+    $lines = Set-EnvVal $lines "HOST_ADMIN_PORT"             $adminport
     $lines = Set-EnvVal $lines "TZ"                          $tz
 
     $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
@@ -190,6 +204,10 @@ if ($runWizard) {
 
     if ([string]::IsNullOrWhiteSpace($qpass)) {
         Write-Host "  WARNING: ServerQuery password is blank. The bot may fail to connect." -ForegroundColor Yellow
+    }
+    if (-not [string]::IsNullOrWhiteSpace($discordWebhook) -and
+        $discordWebhook -notmatch '^https://(canary\.|ptb\.)?(discord(app)?\.com)/api/(v\d+/)?webhooks/\d+/[^/]+/?(\?.*)?$') {
+        Write-Host "  WARNING: The Discord webhook URL does not look like an official Discord webhook." -ForegroundColor Yellow
     }
 
     Write-Host "$checkmark .env saved successfully." -ForegroundColor Green
@@ -235,7 +253,9 @@ Write-Host "  -- or --" -ForegroundColor Gray
 Write-Host "  docker compose up -d" -ForegroundColor Green
 Write-Host ""
 Write-Host "Web dashboard (local):" -ForegroundColor White
-Write-Host "  http://localhost:3000" -ForegroundColor Green
+$finalLines = @(Get-Content $envFile)
+$finalHostPort = Get-EnvVal $finalLines "HOST_WEB_PORT" "3000"
+Write-Host "  http://localhost:$finalHostPort" -ForegroundColor Green
 Write-Host ""
 Write-Host "Get public Cloudflare URL:" -ForegroundColor White
 Write-Host "  docker logs uc-stats-tunnel" -ForegroundColor Green

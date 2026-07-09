@@ -180,6 +180,25 @@
 
     #refresh-btn .svg-icon { --icon-size: 0.95rem; }
 
+    .header-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Outfit', sans-serif;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .header-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .header-btn .svg-icon { --icon-size: 0.95rem; }
+    [hidden] { display: none !important; }
+
     /* ── Stat Cards Row ─────────────────────────────────────────────────── */
     .stats-row {
       display: grid;
@@ -514,6 +533,86 @@
 
     .modal-body { padding: 22px 24px; }
 
+    .modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+
+    .action-btn {
+      min-height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      background: rgba(99, 120, 255, 0.08);
+      color: var(--text-1);
+      font: 500 0.82rem 'Outfit', sans-serif;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .action-btn:hover { border-color: var(--accent); background: rgba(99, 120, 255, 0.14); }
+    .action-btn:disabled { cursor: wait; opacity: 0.55; }
+    .action-btn .svg-icon { --icon-size: 1rem; }
+    .action-btn.danger { color: var(--red); background: rgba(248, 113, 113, 0.08); border-color: rgba(248, 113, 113, 0.28); }
+    .action-btn.danger:hover { background: rgba(248, 113, 113, 0.14); border-color: var(--red); }
+
+    .admin-section + .admin-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .admin-section h3 { font-size: 0.92rem; margin-bottom: 6px; }
+    .admin-section p { color: var(--text-2); font-size: 0.8rem; line-height: 1.55; }
+
+    .challenge-code {
+      margin: 14px 0;
+      padding: 12px;
+      border: 1px solid var(--border-glow);
+      border-radius: 8px;
+      background: rgba(99, 120, 255, 0.08);
+      color: var(--accent2);
+      text-align: center;
+      font: 600 1rem 'JetBrains Mono', monospace;
+      user-select: all;
+    }
+
+    .admin-status-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--green);
+      font-size: 0.82rem;
+      margin-bottom: 18px;
+    }
+
+    .admin-status-line .svg-icon { --icon-size: 1rem; }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 200;
+      max-width: min(360px, calc(100vw - 40px));
+      padding: 11px 14px;
+      border: 1px solid rgba(52, 211, 153, 0.35);
+      border-radius: 8px;
+      background: #151a28;
+      color: var(--text-1);
+      box-shadow: var(--shadow);
+      font-size: 0.82rem;
+    }
+
+    .toast.error { border-color: rgba(248, 113, 113, 0.45); color: var(--red); }
+
     .modal-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -619,6 +718,42 @@
       z-index: 999;
     }
 
+    @media (max-width: 600px) {
+      .page { padding: 0 12px 40px; }
+      header { padding: 22px 0 20px; }
+      .logo-text h1 { font-size: 1.25rem; }
+      .header-status { width: 100%; flex-wrap: wrap; }
+      .status-pill { margin-right: auto; }
+
+      .stats-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin: 18px 0;
+      }
+
+      .stat-card { padding: 14px; min-height: 112px; }
+      .stat-card .value { font-size: 1.3rem; }
+      .panel-header { align-items: flex-start; flex-direction: column; gap: 12px; padding: 14px; }
+      .tab-bar { width: 100%; }
+      .tab-btn { flex: 1; padding: 5px 4px; }
+
+      .leaderboard-table th,
+      .leaderboard-table td { padding: 11px 8px; }
+      .leaderboard-table th:nth-child(4),
+      .leaderboard-table th:nth-child(5),
+      .leaderboard-table td:nth-child(4),
+      .leaderboard-table td:nth-child(5) { display: none; }
+      .rank-cell { width: 38px; }
+      .avatar { width: 30px; height: 30px; }
+      .user-cell { gap: 7px; }
+
+      .modal-overlay { padding: 10px; }
+      .modal-header { padding: 18px 16px 14px; }
+      .modal-body { padding: 18px 16px; }
+      .modal-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .modal-stat { padding: 10px; }
+    }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -663,6 +798,15 @@
   <symbol id="icon-warning" viewBox="0 0 24 24">
     <path d="M12 2 22 20H2L12 2Zm0 5-6.6 11h13.2L12 7Zm-1 3h2v4h-2v-4Zm0 5h2v2h-2v-2Z"/>
   </symbol>
+  <symbol id="icon-shield" viewBox="0 0 24 24">
+    <path d="M12 2 20 5v6c0 5.1-3.4 9.7-8 11-4.6-1.3-8-5.9-8-11V5l8-3Zm0 2.1L6 6.4V11c0 3.9 2.5 7.6 6 8.8 3.5-1.2 6-4.9 6-8.8V6.4l-6-2.3Zm-1 4h2v5h-2v-5Zm0 6.5h2v2h-2v-2Z"/>
+  </symbol>
+  <symbol id="icon-trash" viewBox="0 0 24 24">
+    <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm3 2 .6 8h1.8l-.3-8H9Zm4 0-.3 8h1.8l.6-8H13Z"/>
+  </symbol>
+  <symbol id="icon-send" viewBox="0 0 24 24">
+    <path d="M2 3.5 22 12 2 20.5V14l12-2-12-2V3.5Zm2 3v1.8l14 3.7L4 15.7v1.8L17.3 12 4 6.5Z"/>
+  </symbol>
   <symbol id="icon-arrow-up-right" viewBox="0 0 24 24">
     <path d="M7 5h12v12h-2V8.4L6.4 19 5 17.6 15.6 7H7V5Z"/>
   </symbol>
@@ -689,6 +833,7 @@
         <div class="status-dot"></div>
         <span id="bot-status-text">Connecting…</span>
       </div>
+      <button id="admin-btn" class="header-btn" onclick="openAdminModal()" hidden><svg class="svg-icon" aria-hidden="true"><use href="#icon-shield"></use></svg> Admin</button>
       <button id="refresh-btn" onclick="refreshAll()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg> Refresh</button>
     </div>
   </header>
@@ -815,9 +960,27 @@
       <div class="channel-bar" id="modal-channels"></div>
       <div class="section-title">Recent Sessions</div>
       <div id="modal-sessions" style="font-size:0.8rem;color:var(--text-2);line-height:1.8"></div>
+      <div class="modal-actions" id="user-admin-actions" hidden>
+        <button class="action-btn danger" id="reset-user-btn" onclick="resetCurrentUser()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-trash"></use></svg> Reset this player</button>
+      </div>
     </div>
   </div>
 </div>
+
+<div class="modal-overlay" id="admin-modal-overlay" onclick="closeAdminModal(event)">
+  <div class="modal" id="admin-modal">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <svg class="svg-icon" aria-hidden="true" style="color:var(--accent2);--icon-size:1.25rem"><use href="#icon-shield"></use></svg>
+        <div style="font-size:1.05rem;font-weight:700">Leaderboard Controls</div>
+      </div>
+      <button class="modal-close" onclick="closeAdminModal()" aria-label="Close"><svg class="svg-icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    </div>
+    <div class="modal-body" id="admin-modal-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
 
 <script>
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -840,6 +1003,23 @@
     return `<svg class="svg-icon" aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
   }
 
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+    return data;
+  }
+
+  let toastTimer = null;
+  function showToast(message, isError = false) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.toggle('error', isError);
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.hidden = true; }, 4500);
+  }
+
   function rankLabel(i) {
     if (i < 3) return `<span class="rank-medal">${svgIcon('medal')}</span>`;
     return `#${i+1}`;
@@ -855,7 +1035,243 @@
   let allUsers = [];
   let currentTab = 'total';
   let hoursPerTick = 1 / 60;
+  let currentModalUid = null;
+  let currentModalName = '';
+  let pendingAdminChallenge = null;
+  let adminState = {
+    authorized: false,
+    mode: null,
+    username: null,
+    apiBase: '',
+    discord: { configured: false },
+  };
   const timeKeys = { total: 'total_time', daily: 'daily_time', weekly: 'weekly_time', monthly: 'monthly_time' };
+
+  function isLoopbackDashboard() {
+    return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  }
+
+  async function initializeAdminAccess() {
+    let config = {};
+    try {
+      config = await fetchJson('/api/config');
+    } catch {
+      return;
+    }
+
+    if (isLoopbackDashboard() && config.admin_port) {
+      const localBase = `http://${location.hostname}:${config.admin_port}`;
+      try {
+        const status = await fetchJson(`${localBase}/api/admin/status`);
+        adminState = { ...status, apiBase: localBase };
+      } catch {
+        // The local-only port may still be starting; remote verification remains available.
+      }
+    }
+
+    if (!adminState.authorized) {
+      try {
+        const status = await fetchJson('/api/admin/status', { credentials: 'include' });
+        adminState = { ...status, apiBase: '' };
+      } catch {
+        adminState = { ...adminState, apiBase: '' };
+      }
+    }
+
+    const button = document.getElementById('admin-btn');
+    button.hidden = false;
+    button.innerHTML = `${svgIcon('shield')} ${adminState.authorized ? 'Manage' : 'Admin access'}`;
+    updateUserAdminActions();
+  }
+
+  async function adminFetch(path, options = {}) {
+    return fetchJson(`${adminState.apiBase}${path}`, {
+      credentials: adminState.apiBase ? 'omit' : 'include',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+  }
+
+  async function refreshAdminState() {
+    const status = await fetchJson(`${adminState.apiBase}/api/admin/status`, {
+      credentials: adminState.apiBase ? 'omit' : 'include',
+    });
+    adminState = { ...status, apiBase: adminState.apiBase };
+    const button = document.getElementById('admin-btn');
+    button.innerHTML = `${svgIcon('shield')} ${adminState.authorized ? 'Manage' : 'Admin access'}`;
+    updateUserAdminActions();
+  }
+
+  function openAdminModal() {
+    document.getElementById('admin-modal-overlay').classList.add('open');
+    renderAdminModal();
+  }
+
+  function closeAdminModal(event) {
+    if (event && event.target !== document.getElementById('admin-modal-overlay') && event.type === 'click') return;
+    document.getElementById('admin-modal-overlay').classList.remove('open');
+  }
+
+  function renderAdminModal() {
+    const body = document.getElementById('admin-modal-body');
+    if (!adminState.authorized) {
+      const challenge = pendingAdminChallenge
+        ? `<div class="challenge-code">${esc(pendingAdminChallenge.code)}</div>
+           <p>Add this code anywhere in your TeamSpeak nickname, then verify. You can remove it after access unlocks.</p>
+           <div class="modal-actions">
+             <button class="action-btn" id="verify-admin-btn" onclick="verifyAdminChallenge()">${svgIcon('shield')} Verify now</button>
+             <button class="action-btn" onclick="startAdminChallenge()">New code</button>
+           </div>`
+        : `<div class="modal-actions">
+             <button class="action-btn" id="start-admin-btn" onclick="startAdminChallenge()">${svgIcon('shield')} Start verification</button>
+           </div>`;
+
+      body.innerHTML = `
+        <div class="admin-section">
+          <h3>TeamSpeak Server Admin verification</h3>
+          <p>Editing access is granted only when the tracker sees the temporary code on an online TeamSpeak UID that belongs to an allowed Server Admin group.</p>
+          ${challenge}
+        </div>`;
+      return;
+    }
+
+    const discord = adminState.discord || {};
+    const sentText = discord.last_sent_at ? ` Last sent ${fmtDate(discord.last_sent_at)}.` : '';
+    body.innerHTML = `
+      <div class="admin-status-line">${svgIcon('shield')} ${esc(adminState.username || 'Administrator')} verified via ${adminState.mode === 'local' ? 'this laptop' : 'TeamSpeak UID'}</div>
+      <div class="admin-section">
+        <h3>Discord statistics</h3>
+        <p>${discord.configured ? `Automatic reports are enabled every ${discord.interval_minutes || 60} minutes.${sentText}` : 'No Discord webhook is configured yet. Run setup.ps1 to add one.'}</p>
+        <div class="modal-actions">
+          <button class="action-btn" id="send-discord-btn" onclick="sendDiscordNow()" ${discord.configured ? '' : 'disabled'}>${svgIcon('send')} Send now</button>
+        </div>
+      </div>
+      <div class="admin-section">
+        <h3>Tracked data</h3>
+        <p>This permanently removes every player, session, channel total, activity event, and heatmap entry.</p>
+        <div class="modal-actions">
+          <button class="action-btn danger" id="reset-all-btn" onclick="resetAllData()">${svgIcon('trash')} Reset all data</button>
+          ${adminState.mode === 'teamspeak' ? '<button class="action-btn" onclick="logoutAdmin()">Sign out</button>' : ''}
+        </div>
+      </div>`;
+  }
+
+  async function startAdminChallenge() {
+    const button = document.getElementById('start-admin-btn');
+    if (button) button.disabled = true;
+    try {
+      pendingAdminChallenge = await fetchJson('/api/admin/challenge', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      renderAdminModal();
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function verifyAdminChallenge() {
+    if (!pendingAdminChallenge) return;
+    const button = document.getElementById('verify-admin-btn');
+    if (button) button.disabled = true;
+    try {
+      await fetchJson('/api/admin/verify', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId: pendingAdminChallenge.id }),
+      });
+      pendingAdminChallenge = null;
+      adminState.apiBase = '';
+      await refreshAdminState();
+      renderAdminModal();
+      showToast('Server Admin access unlocked.');
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function sendDiscordNow() {
+    const button = document.getElementById('send-discord-btn');
+    if (button) button.disabled = true;
+    try {
+      await adminFetch('/api/admin/discord/report', { method: 'POST', body: '{}' });
+      await refreshAdminState();
+      renderAdminModal();
+      showToast('Statistics sent to Discord.');
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function resetAllData() {
+    if (window.prompt('Type RESET to permanently delete all tracked data:') !== 'RESET') return;
+    const button = document.getElementById('reset-all-btn');
+    if (button) button.disabled = true;
+    try {
+      await adminFetch('/api/admin/data', {
+        method: 'DELETE',
+        body: JSON.stringify({ confirm: 'RESET' }),
+      });
+      closeAdminModal();
+      await refreshAll();
+      showToast('All tracked data was reset.');
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function logoutAdmin() {
+    try {
+      await fetchJson('/api/admin/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      adminState = { ...adminState, authorized: false, mode: null, username: null, discord: { configured: false } };
+      renderAdminModal();
+      document.getElementById('admin-btn').innerHTML = `${svgIcon('shield')} Admin access`;
+      updateUserAdminActions();
+    } catch (error) {
+      showToast(error.message, true);
+    }
+  }
+
+  function updateUserAdminActions() {
+    const actions = document.getElementById('user-admin-actions');
+    if (actions) actions.hidden = !adminState.authorized || !currentModalUid;
+  }
+
+  async function resetCurrentUser() {
+    if (!currentModalUid || !adminState.authorized) return;
+    const uid = currentModalUid;
+    const username = currentModalName;
+    if (!window.confirm(`Reset all tracked data for ${username}?`)) return;
+    const button = document.getElementById('reset-user-btn');
+    if (button) button.disabled = true;
+    try {
+      await adminFetch(`/api/admin/users/${encodeURIComponent(uid)}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ uid }),
+      });
+      closeModal();
+      await refreshAll();
+      showToast(`${username} was reset.`);
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
 
   // ── Fetch & Render ────────────────────────────────────────────────────────
   async function fetchAll() {
@@ -915,7 +1331,7 @@
           <td class="rank-cell${rankClass}">${rankLabel(i)}</td>
           <td>
             <div class="user-cell">
-              <div class="avatar">${initials}</div>
+              <div class="avatar">${esc(initials)}</div>
               <div>
                 <div class="user-name">${esc(u.username)}</div>
                 <div class="user-meta">Sessions: ${u.session_count || 0}</div>
@@ -1006,10 +1422,14 @@
   async function openModal(uid) {
     const overlay = document.getElementById('modal-overlay');
     overlay.classList.add('open');
+    currentModalUid = uid;
+    currentModalName = '';
+    updateUserAdminActions();
 
     try {
-      const data = await fetch(`/api/user/${encodeURIComponent(uid)}`).then(r=>r.json());
+      const data = await fetchJson(`/api/user/${encodeURIComponent(uid)}`);
       const initials = data.username.slice(0,2).toUpperCase();
+      currentModalName = data.username;
       document.getElementById('modal-avatar').textContent = initials;
       document.getElementById('modal-name').textContent = data.username;
       document.getElementById('modal-badge').innerHTML = statusBadge(data);
@@ -1063,19 +1483,31 @@
           ).join('<br>')
         : `<span style="color:var(--text-3)">No completed sessions recorded yet.</span>`;
 
-    } catch (e) {
-      document.getElementById('modal-body').innerHTML =
-        `<div class="empty-state"><div class="icon">${svgIcon('warning')}</div>Could not load user data.</div>`;
+      const resetButton = document.getElementById('reset-user-btn');
+      if (resetButton) resetButton.disabled = false;
+      updateUserAdminActions();
+
+    } catch (error) {
+      closeModal();
+      showToast(error.message || 'Could not load user data.', true);
     }
   }
 
   function closeModal(e) {
     if (e && e.target !== document.getElementById('modal-overlay') && e.type === 'click') return;
     document.getElementById('modal-overlay').classList.remove('open');
+    currentModalUid = null;
+    currentModalName = '';
+    updateUserAdminActions();
   }
 
   // Close on Escape
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeModal();
+      closeAdminModal();
+    }
+  });
 
   // ── Escape helper ─────────────────────────────────────────────────────────
   function esc(str) {
@@ -1086,7 +1518,7 @@
   function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.innerHTML = `${svgIcon('refresh')} Loading...`;
-    fetchAll().finally(() => {
+    return fetchAll().finally(() => {
       btn.innerHTML = `${svgIcon('refresh')} Refresh`;
       document.getElementById('last-refresh-text').textContent =
         `Last refresh: ${new Date().toLocaleTimeString()} — Auto-refreshes every 30s`;
@@ -1097,6 +1529,7 @@
   setInterval(refreshAll, 30_000);
 
   // Initial load
+  initializeAdminAccess();
   refreshAll();
 </script>
 </body>

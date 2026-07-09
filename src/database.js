@@ -89,6 +89,14 @@ db.serialize(() => {
     )
   `);
 
+  // Small persistent values such as the last successful Discord report time.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
   // Indexes
   db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_uid      ON sessions(uid)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_events_uid        ON events(uid)`);
@@ -112,5 +120,17 @@ db.runAsync = (sql, p = []) =>
       e ? rej(e) : res({ lastID: this.lastID, changes: this.changes });
     })
   );
+
+db.transactionAsync = async (callback) => {
+  await db.runAsync("BEGIN IMMEDIATE");
+  try {
+    const result = await callback();
+    await db.runAsync("COMMIT");
+    return result;
+  } catch (error) {
+    await db.runAsync("ROLLBACK").catch(() => {});
+    throw error;
+  }
+};
 
 module.exports = db;

@@ -7,9 +7,10 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "lint": "npm run lint:js && npm run lint:web",
-    "lint:js": "eslint src eslint.config.js",
+    "lint:js": "eslint src test eslint.config.js",
     "lint:web": "htmlhint web/**/*.html",
-    "check": "npm run lint && node --check src/index.js && node --check src/tracker.js && node --check src/database.js"
+    "test": "node --test",
+    "check": "npm run lint && npm test && node --check src/index.js && node --check src/tracker.js && node --check src/database.js && node --check src/discord.js && node --check src/admin-auth.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

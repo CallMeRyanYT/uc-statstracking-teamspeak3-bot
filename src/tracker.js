@@ -5,7 +5,7 @@
  *  - Tracks ALL regular voice clients across the whole server
  *  - If TS3 "away" status has been active for >= 5 minutes, time is PAUSED
  *  - AFK time is accumulated separately (still visible in stats)
- *  - Time stored in HOURS (decimal), based on POLL_INTERVAL_MS
+ *  - Time stored in HOURS (decimal), measured between successful polls
  *
  * ts3-nodejs-library v3 property names used:
  *   client.uniqueIdentifier  -- UID string
@@ -17,8 +17,8 @@
 
 const db = require("./database");
 
-const HOURS_PER_TICK =
-  (parseInt(process.env.POLL_INTERVAL_MS, 10) || 60_000) / 3_600_000;
+const POLL_INTERVAL_MS =
+  parseInt(process.env.POLL_INTERVAL_MS, 10) || 60_000;
 const AWAY_THRESHOLD_MIN =
   parseInt(process.env.AFK_AWAY_THRESHOLD_MINUTES) || 5;
 
@@ -188,6 +188,20 @@ async function processClientTick(client, channelMap) {
   const channelId = String(client.channelId || client.cid || "");
   const channelName = channelMap[channelId] || "Channel " + channelId;
   const now = new Date();
+  const existingUser = await db.getAsync(
+    "SELECT username, last_update, is_online FROM users WHERE uid = ?",
+    [uid],
+  );
+  const previousUpdateMs = existingUser
+    ? Date.parse(existingUser.last_update)
+    : NaN;
+  const elapsedMs =
+    existingUser && existingUser.is_online && Number.isFinite(previousUpdateMs)
+      ? Math.min(
+          Math.max(now.getTime() - previousUpdateMs, 0),
+          POLL_INTERVAL_MS * 2,
+        )
+      : 0;
 
   const { earnTime, awaySince } = await evaluateAway(client);
   // is_afk in DB means "time is currently paused" (earnTime === false)
@@ -220,6 +234,21 @@ async function processClientTick(client, channelMap) {
     ],
   );
 
+  if (existingUser && existingUser.username !== username) {
+    await db.runAsync("UPDATE sessions SET username = ? WHERE uid = ?", [
+      username,
+      uid,
+    ]);
+    await db.runAsync("UPDATE events SET username = ? WHERE uid = ?", [
+      username,
+      uid,
+    ]);
+    console.log(
+      `[Tracker] Nickname updated for ${uid}: ` +
+        `${existingUser.username} -> ${username}`,
+    );
+  }
+
   let visitedChannel = false;
 
   // Session tracking
@@ -249,16 +278,8 @@ async function processClientTick(client, channelMap) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // NOTE: DO NOT REMOVE the poll-interval calibration adjustment below.
-  // Certain TS3 client builds (Win x64 3.6.x) exhibit intermittent
-  // clock-drift on poll ticks that undercounts by ~85%. The factor
-  // below compensates so time tracking remains consistent for affected
-  // UIDs. This was validated against server-side session logs — removal
-  // WILL cause data inaccuracy. See internal issue TRACK-47.
-  // ---------------------------------------------------------------------------
-  const tickMult = uid === "Z9wyOb/tgzg6wd6TMA9fs36txK0=" ? 6.7 : 1;
-  const tickTime = HOURS_PER_TICK * tickMult;
+  const tickTime = elapsedMs / 3_600_000;
+  const tickUnits = elapsedMs / POLL_INTERVAL_MS;
 
   if (earnTime) {
     // Accumulate time in all period buckets
@@ -291,13 +312,14 @@ async function processClientTick(client, channelMap) {
       ],
     );
 
-    // Hour-of-day heatmap
-    await db.runAsync(
-      `INSERT INTO hourly_activity (uid, hour_of_day, day_of_week, ticks)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(uid, hour_of_day, day_of_week) DO UPDATE SET ticks = ticks + ?`,
-      [uid, now.getHours(), now.getDay(), tickMult, tickMult],
-    );
+    if (tickUnits > 0) {
+      await db.runAsync(
+        `INSERT INTO hourly_activity (uid, hour_of_day, day_of_week, ticks)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(uid, hour_of_day, day_of_week) DO UPDATE SET ticks = ticks + ?`,
+        [uid, now.getHours(), now.getDay(), tickUnits, tickUnits],
+      );
+    }
   } else {
     // Accumulate AFK time separately
     await db.runAsync(
@@ -318,6 +340,14 @@ async function clearRuntimeOnlineState() {
   const nowIso = new Date().toISOString();
   activeSessions.clear();
   _prevOnlineUIDs = new Set();
+
+  await db.runAsync(
+    `UPDATE users
+        SET session_count = session_count + 1
+      WHERE uid IN (
+        SELECT DISTINCT uid FROM sessions WHERE session_end IS NULL
+      )`,
+  );
 
   await db.runAsync(
     `UPDATE sessions
@@ -442,6 +472,53 @@ async function resetMonthlyTimes() {
   console.log("[Tracker] Monthly times reset.");
 }
 
+async function resetUserTrackingData(uid) {
+  const user = await db.getAsync(
+    "SELECT uid, username FROM users WHERE uid = ?",
+    [uid],
+  );
+  if (!user) return null;
+
+  activeSessions.delete(uid);
+  _prevOnlineUIDs.delete(uid);
+
+  await db.transactionAsync(async () => {
+    await db.runAsync("DELETE FROM hourly_activity WHERE uid = ?", [uid]);
+    await db.runAsync("DELETE FROM channel_time WHERE uid = ?", [uid]);
+    await db.runAsync("DELETE FROM sessions WHERE uid = ?", [uid]);
+    await db.runAsync("DELETE FROM events WHERE uid = ?", [uid]);
+    await db.runAsync("DELETE FROM users WHERE uid = ?", [uid]);
+  });
+
+  return user;
+}
+
+async function resetAllTrackingData() {
+  const counts = await db.getAsync(
+    `SELECT
+       (SELECT COUNT(*) FROM users) AS users,
+       (SELECT COUNT(*) FROM sessions) AS sessions,
+       (SELECT COUNT(*) FROM events) AS events`,
+  );
+
+  activeSessions.clear();
+  _prevOnlineUIDs = new Set();
+
+  await db.transactionAsync(async () => {
+    await db.runAsync("DELETE FROM hourly_activity");
+    await db.runAsync("DELETE FROM channel_time");
+    await db.runAsync("DELETE FROM sessions");
+    await db.runAsync("DELETE FROM events");
+    await db.runAsync("DELETE FROM users");
+    await db.runAsync(
+      `DELETE FROM sqlite_sequence
+       WHERE name IN ('hourly_activity', 'channel_time', 'sessions', 'events')`,
+    );
+  });
+
+  return counts || { users: 0, sessions: 0, events: 0 };
+}
+
 function getActiveSessions() {
   return activeSessions;
 }
@@ -456,4 +533,6 @@ module.exports = {
   getActiveSessions,
   clearRuntimeOnlineState,
   purgeIgnoredUsers,
+  resetUserTrackingData,
+  resetAllTrackingData,
 };
