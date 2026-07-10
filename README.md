@@ -13,10 +13,10 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 | Persistent data | SQLite database in the Docker volume |
 | AFK handling | Pauses active time after the configured away threshold |
 | Period resets | Daily, weekly, and monthly counters reset automatically |
-| Discord reports | Posts totals, top players, and top channels on a schedule |
-| Admin controls | Reset one player or all tracked data from the dashboard |
+| Discord reports | Posts totals, top users, top channels, and the public website on a schedule |
+| Admin controls | Reset one user or all tracked data from the dashboard |
 | Stable identities | Uses the permanent TeamSpeak client UID, not the temporary connection ID |
-| Cloudflare tunnel | Optional public dashboard URL without port forwarding |
+| Public website | Uses the configured domain or subdomain in dashboard and Discord links |
 
 ## Quick Start
 
@@ -44,12 +44,13 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
    HOST_ADMIN_PORT=3001
    TS3_ADMIN_GROUP_IDS=6
    DISCORD_WEBHOOK_URL=
+   PUBLIC_DASHBOARD_URL=https://uct.aquaweb.cc/
    ```
 
 3. Start it:
 
    ```powershell
-   docker compose up -d --build
+   docker compose up -d --build --remove-orphans
    docker logs -f uc-stats-bot
    ```
 
@@ -64,43 +65,53 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 3. Create a webhook and copy its URL.
 4. Run `.\setup.ps1` again, choose to update configuration, copy the URL, and press Enter at the webhook prompt. The wizard reads it from your clipboard without displaying it.
 5. Choose the automatic report interval. The default is 60 minutes and the minimum is 5 minutes.
-6. Rebuild and start:
+6. Enter `https://uct.aquaweb.cc/` at the public website prompt. This link is added to each report.
+7. Rebuild and start:
 
    ```powershell
-   docker compose up -d --build
+   docker compose up -d --build --remove-orphans
    ```
 
 The first automatic report is sent when tracked data exists and a report is due. From the local dashboard, open **Manage** and use **Send now** to test it immediately.
 
 Treat the webhook URL like a password. If it is ever pasted into a public chat, delete or rotate it in Discord and update `.env`.
 
-## Cloudflare Public URL
+## Public Website At uct.aquaweb.cc
 
-The Docker setup starts a temporary Cloudflare quick tunnel by default. This lets other people open the dashboard without port forwarding.
+The project no longer starts or manages a tunnel container. The public dashboard address is:
 
-1. Start the stack:
+```text
+https://uct.aquaweb.cc/
+```
+
+Set it through `setup.ps1` or `.env`:
+
+```env
+PUBLIC_DASHBOARD_URL=https://uct.aquaweb.cc/
+```
+
+This setting controls the website link shown in the dashboard and Discord reports. It does not create DNS, HTTPS, or a reverse proxy. The server that manages `uct.aquaweb.cc` must forward public HTTPS requests to this app's dashboard port, normally `http://<bot-host>:3000`.
+
+1. Configure the website host or reverse proxy for `uct.aquaweb.cc` to target the machine running this app on port `3000`.
+2. Keep admin port `3001` private. Docker binds it only to `127.0.0.1`.
+3. Run `./setup.ps1` and enter `https://uct.aquaweb.cc/` when asked for the public website.
+4. Start the current stack and remove any old containers:
 
    ```powershell
-   docker compose up -d --build
+   docker compose up -d --build --remove-orphans
    ```
 
-2. Show the public URL:
+5. If `uct.aquaweb.cc` is served by another PC or VPS, run the same update and Compose command on that host. Rebuilding a development laptop does not replace a container running on a different machine.
+6. Verify both endpoints:
 
    ```powershell
-   docker logs uc-stats-tunnel
+   Invoke-WebRequest http://localhost:3000/api/health
+   Invoke-WebRequest https://uct.aquaweb.cc/api/health
    ```
 
-3. Look for a URL like:
+If the local URL works but the public URL does not, the remaining problem is in DNS, HTTPS, firewall, port forwarding, or the external reverse proxy rather than this container.
 
-   ```text
-   https://example-name.trycloudflare.com
-   ```
-
-That URL points to the same dashboard as `http://localhost:3000`. It changes when the tunnel container is recreated. For a permanent domain, create a named tunnel in Cloudflare Zero Trust and point it to `http://uc-stats-bot:3000` inside Docker, or to `http://localhost:3000` if you run `cloudflared` directly on Windows.
-
-Only dashboard port `3000` is tunneled. Local admin port `3001` is published on `127.0.0.1` and is never sent through Cloudflare. Public dashboard visitors must verify a live TeamSpeak Server Admin identity before editing data.
-
-To disable the public URL, comment out or remove the `cloudflare-tunnel` service in `docker-compose.yml`.
+If both URLs work but show different page titles or designs, the public host is running an older image. Pull or copy this project onto that host and run `docker compose up -d --build --remove-orphans` there.
 
 ## Required TeamSpeak Setup
 
@@ -128,7 +139,7 @@ TeamSpeak exposes both a temporary connection ID and a permanent client unique i
 Dashboard editing works in two ways:
 
 - On `http://localhost:3000`, the laptop gets automatic access through the loopback-only admin port.
-- On a Cloudflare/public URL, a Server Admin selects **Admin access**, receives a five-minute code, briefly adds it to their TeamSpeak nickname, and clicks **Verify now**. The tracker checks the online UID and its server groups before granting a one-hour session. Access ends if that UID goes offline or loses the configured admin group.
+- On the public URL, a Server Admin selects **Admin access**, receives a five-minute code, briefly adds it to their TeamSpeak nickname, and clicks **Verify now**. The tracker checks the online UID and its server groups before granting a one-hour session. Access ends if that UID goes offline or loses the configured admin group.
 
 Set `TS3_ADMIN_GROUP_IDS` to the comma-separated IDs that should have access. `6` is a common default for Server Admin, but confirm the ID on your server.
 
@@ -151,6 +162,7 @@ Set `TS3_ADMIN_GROUP_IDS` to the comma-separated IDs that should have access. `6
 | `POLL_INTERVAL_MS` | `60000` | Poll frequency |
 | `DISCORD_WEBHOOK_URL` | | Discord channel webhook; blank disables reports |
 | `DISCORD_REPORT_INTERVAL_MINUTES` | `60` | Automatic statistics report frequency |
+| `PUBLIC_DASHBOARD_URL` | `https://uct.aquaweb.cc/` | Website included in dashboard and Discord links |
 | `WEB_PORT` | `3000` | App port inside Docker |
 | `HOST_WEB_PORT` | `3000` | Dashboard port on Windows |
 | `ADMIN_PORT` | `3001` | Internal local-admin API port |
@@ -162,7 +174,7 @@ Names in `BOT_NICKNAMES` are ignored during tracking and purged from existing st
 ## Useful Commands
 
 ```powershell
-docker compose up -d --build
+docker compose up -d --build --remove-orphans
 docker logs -f uc-stats-bot
 docker compose ps
 Invoke-WebRequest http://localhost:3000/api/health
@@ -174,7 +186,7 @@ Back up the database before a large reset:
 docker cp uc-stats-bot:/app/data/stats.sqlite ./stats-backup.sqlite
 ```
 
-Use **Manage > Reset all data** on the local dashboard to clear everything, or open a player profile and select **Reset this player**. Both actions require confirmation. Deleting the Docker volume remains an emergency fallback, but it is no longer needed for normal resets.
+Use **Manage > Reset all data** on the local dashboard to clear everything, or open a user profile and select **Reset this user**. Both actions require confirmation. Deleting the Docker volume remains an emergency fallback, but it is no longer needed for normal resets.
 
 ## Troubleshooting
 
@@ -214,7 +226,7 @@ clientlist
 channellist
 ```
 
-### Excluding AFK Or Bot Channels
+### Excluding Channels
 
 Put channel IDs in `.env`:
 
@@ -225,7 +237,7 @@ EXCLUDED_CHANNELS=12,18,27
 Then rebuild:
 
 ```powershell
-docker compose up -d --build
+docker compose up -d --build --remove-orphans
 ```
 
 ### Discord Report Fails

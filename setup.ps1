@@ -134,6 +134,11 @@ function Read-Secret {
     return $plain
 }
 
+function Test-DiscordWebhookUrl {
+    param([string]$Value)
+    return $Value -match '^https://(www\.|canary\.|ptb\.)?(discord(app)?\.com)/api/(v\d+/)?webhooks/\d+/[^/]+/?(\?.*)?$'
+}
+
 function Read-DiscordWebhook {
     param([string]$Current)
     if ([string]::IsNullOrWhiteSpace($Current)) {
@@ -157,7 +162,7 @@ function Read-DiscordWebhook {
         $clipboard = Get-Clipboard -Raw -ErrorAction Stop
         if (-not [string]::IsNullOrWhiteSpace($clipboard)) {
             $candidate = $clipboard.Trim()
-            if ($candidate -match '^https?://') {
+            if (Test-DiscordWebhookUrl $candidate) {
                 Write-Host "  Using webhook URL from clipboard." -ForegroundColor Green
                 return $candidate
             }
@@ -167,6 +172,35 @@ function Read-DiscordWebhook {
     }
 
     return $Current
+}
+
+function Normalize-PublicUrl {
+    param([string]$Value)
+    $candidate = $Value.Trim()
+    if ($candidate -notmatch '^https?://') {
+        $candidate = "https://$candidate"
+    }
+
+    try {
+        $uri = [Uri]$candidate
+        if (-not $uri.IsAbsoluteUri -or ($uri.Scheme -ne "http" -and $uri.Scheme -ne "https")) {
+            throw "URL must use HTTP or HTTPS."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($uri.UserInfo)) {
+            throw "URL cannot contain login credentials."
+        }
+        if ($uri.AbsoluteUri.Length -gt 500) {
+            throw "URL is too long."
+        }
+        $builder = [System.UriBuilder]::new($uri)
+        if (-not $builder.Path.EndsWith('/')) {
+            $builder.Path = $builder.Path + '/'
+        }
+        $builder.Fragment = ""
+        return $builder.Uri.AbsoluteUri
+    } catch {
+        throw "Invalid public dashboard URL: $Value"
+    }
 }
 
 $createdNew = $false
@@ -212,6 +246,12 @@ if ($runWizard) {
     $discordInterval = Read-Val "Automatic report interval in minutes" (Get-EnvVal $lines "DISCORD_REPORT_INTERVAL_MINUTES" "60")
 
     Write-Host ""
+    Write-Host "--- Public Website ---" -ForegroundColor Cyan
+    Write-Host "  This link is shown at the bottom of Discord statistics reports." -ForegroundColor Gray
+    $publicUrlInput = Read-Val "Domain or subdomain URL" (Get-EnvVal $lines "PUBLIC_DASHBOARD_URL" "https://uct.aquaweb.cc/")
+    $publicUrl = Normalize-PublicUrl $publicUrlInput
+
+    Write-Host ""
     Write-Host "--- Tracking Settings ---" -ForegroundColor Cyan
     $afkMin    = Read-Val "AFK pause threshold in minutes" (Get-EnvVal $lines "AFK_AWAY_THRESHOLD_MINUTES" "5")
     $webport   = Read-Val "Web dashboard port"             (Get-EnvVal $lines "WEB_PORT" "3000")
@@ -227,6 +267,7 @@ if ($runWizard) {
     $lines = Set-EnvVal $lines "TS3_ADMIN_GROUP_IDS"          $adminGroups
     $lines = Set-EnvVal $lines "DISCORD_WEBHOOK_URL"          $discordWebhook
     $lines = Set-EnvVal $lines "DISCORD_REPORT_INTERVAL_MINUTES" $discordInterval
+    $lines = Set-EnvVal $lines "PUBLIC_DASHBOARD_URL"         $publicUrl
     $lines = Set-EnvVal $lines "AFK_AWAY_THRESHOLD_MINUTES"  $afkMin
     $lines = Set-EnvVal $lines "WEB_PORT"                    $webport
     $lines = Set-EnvVal $lines "HOST_WEB_PORT"               $hostport
@@ -241,7 +282,7 @@ if ($runWizard) {
         Write-Host "  WARNING: ServerQuery password is blank. The bot may fail to connect." -ForegroundColor Yellow
     }
     if (-not [string]::IsNullOrWhiteSpace($discordWebhook) -and
-        $discordWebhook -notmatch '^https://(canary\.|ptb\.)?(discord(app)?\.com)/api/(v\d+/)?webhooks/\d+/[^/]+/?(\?.*)?$') {
+        -not (Test-DiscordWebhookUrl $discordWebhook)) {
         Write-Host "  WARNING: The Discord webhook URL does not look like an official Discord webhook." -ForegroundColor Yellow
     }
 
@@ -285,15 +326,16 @@ Write-Host ""
 Write-Host "To START the bot:" -ForegroundColor White
 Write-Host "  Double-click start_bot.bat" -ForegroundColor Green
 Write-Host "  -- or --" -ForegroundColor Gray
-Write-Host "  docker compose up -d" -ForegroundColor Green
+Write-Host "  docker compose up -d --remove-orphans" -ForegroundColor Green
 Write-Host ""
 Write-Host "Web dashboard (local):" -ForegroundColor White
 $finalLines = @(Get-Content $envFile)
 $finalHostPort = Get-EnvVal $finalLines "HOST_WEB_PORT" "3000"
 Write-Host "  http://localhost:$finalHostPort" -ForegroundColor Green
 Write-Host ""
-Write-Host "Get public Cloudflare URL:" -ForegroundColor White
-Write-Host "  docker logs uc-stats-tunnel" -ForegroundColor Green
+Write-Host "Public dashboard:" -ForegroundColor White
+$finalPublicUrl = Get-EnvVal $finalLines "PUBLIC_DASHBOARD_URL" "https://uct.aquaweb.cc/"
+Write-Host "  $finalPublicUrl" -ForegroundColor Green
 Write-Host ""
 Write-Host "View bot logs:" -ForegroundColor White
 Write-Host "  docker logs -f uc-stats-bot" -ForegroundColor Green

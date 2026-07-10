@@ -1,6 +1,6 @@
 # Docker Setup Guide - UC Stats Bot
 
-This guide walks you through installing Docker Desktop on Windows and running the TeamSpeak 3 stats tracker, dashboard, local admin controls, and optional Discord reports.
+This guide walks you through installing Docker Desktop on Windows and running the TeamSpeak 3 stats tracker, dashboard, local admin controls, and optional Discord reports at `https://uct.aquaweb.cc/`.
 
 ## Part 1 - Install Docker Desktop
 
@@ -54,7 +54,7 @@ The wizard checks Docker, asks for TS3 ServerQuery settings, writes `.env`, and 
 After setup completes, double-click `start_bot.bat`, or run:
 
 ```powershell
-docker compose up -d
+docker compose up -d --remove-orphans
 ```
 
 ## Part 4 - Verify It Works
@@ -65,11 +65,10 @@ Check containers:
 docker compose ps
 ```
 
-You should see:
+You should see one application container:
 
 ```text
 uc-stats-bot
-uc-stats-tunnel
 ```
 
 View live bot logs:
@@ -98,17 +97,13 @@ Open the local dashboard:
 http://localhost:3000
 ```
 
-Get the temporary Cloudflare public URL:
-
-```powershell
-docker logs uc-stats-tunnel
-```
-
-Look for:
+The configured public website is:
 
 ```text
-https://example-name.trycloudflare.com
+https://uct.aquaweb.cc/
 ```
+
+The website host or reverse proxy must forward that domain to dashboard port `3000`. The `PUBLIC_DASHBOARD_URL` setting controls links only; it does not configure DNS or HTTPS.
 
 ## Part 5 - Managing The Bot
 
@@ -134,7 +129,7 @@ Rebuild after code changes:
 
 ```powershell
 docker compose down
-docker compose up -d --build
+docker compose up -d --build --remove-orphans
 ```
 
 Force a clean rebuild:
@@ -142,7 +137,7 @@ Force a clean rebuild:
 ```powershell
 docker compose down
 docker compose build --no-cache
-docker compose up -d
+docker compose up -d --remove-orphans
 ```
 
 ## Part 6 - Auto-Start On Windows Boot
@@ -154,10 +149,12 @@ docker compose up -d
 
 ## Part 7 - Updating The Bot
 
+Run these commands on the machine that actually serves the dashboard. If `uct.aquaweb.cc` points to another PC or VPS, updating only your development laptop will not update the public site.
+
 ```powershell
 git pull
 docker compose down
-docker compose up -d --build
+docker compose up -d --build --remove-orphans
 ```
 
 Your database is stored in the Docker volume `uc_stats_data` and is preserved across rebuilds.
@@ -166,19 +163,18 @@ The dashboard uses two published ports by default:
 
 | Port | Access | Purpose |
 | --- | --- | --- |
-| `3000` | Local, LAN, or Cloudflare | Read-only dashboard and verified Server Admin sessions |
+| `3000` | Local, LAN, or public website proxy | Read-only dashboard and verified Server Admin sessions |
 | `3001` | `127.0.0.1` only | Automatic admin access for this Windows laptop |
 
-Do not point Cloudflare at port `3001`.
+Never expose or proxy port `3001`.
 
 ## Command Cheat Sheet
 
 | Task | Command |
 | --- | --- |
-| Start bot | `docker compose up -d` |
+| Start bot | `docker compose up -d --remove-orphans` |
 | Stop bot | `docker compose down` |
 | View bot logs | `docker logs -f uc-stats-bot` |
-| View tunnel URL | `docker logs uc-stats-tunnel` |
 | Restart bot | `docker compose restart uc-stats-bot` |
 | List containers | `docker compose ps` |
 | Backup database | `docker cp uc-stats-bot:/app/data/stats.sqlite ./backup.sqlite` |
@@ -200,6 +196,6 @@ All stats are stored locally in the Docker volume. The app only needs:
 
 - A TCP connection to your TS3 ServerQuery port.
 - An optional outbound HTTPS connection to the configured Discord webhook.
-- An optional outbound Cloudflare Tunnel connection for the public dashboard URL.
+- An inbound route from the configured website host or reverse proxy to dashboard port `3000`, if public access is enabled.
 
 There are no TS3 chat commands. The Discord webhook is stored in `.env`, which is ignored by Git; never commit or publicly share it.

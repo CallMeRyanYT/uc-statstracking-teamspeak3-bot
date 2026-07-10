@@ -34,6 +34,33 @@ function validateDiscordWebhookUrl(rawUrl) {
   return url;
 }
 
+function validatePublicDashboardUrl(rawUrl) {
+  const value = String(rawUrl || "").trim();
+  if (!value) return null;
+
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("Public dashboard URL is not a valid URL.");
+  }
+
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("Public dashboard URL must use HTTP or HTTPS.");
+  }
+
+  if (url.username || url.password) {
+    throw new Error("Public dashboard URL cannot contain login credentials.");
+  }
+
+  if (url.toString().length > 500) {
+    throw new Error("Public dashboard URL is too long.");
+  }
+
+  url.hash = "";
+  return url.toString();
+}
+
 function parseIntervalMinutes(value) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed)) return DEFAULT_INTERVAL_MINUTES;
@@ -41,10 +68,8 @@ function parseIntervalMinutes(value) {
 }
 
 function formatHours(value) {
-  const hours = Number(value) || 0;
-  const wholeHours = Math.floor(hours);
-  const minutes = Math.round((hours - wholeHours) * 60);
-  return `${wholeHours}h ${minutes}m`;
+  const totalMinutes = Math.max(0, Math.round((Number(value) || 0) * 60));
+  return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
 }
 
 function escapeDiscordMarkdown(value, maxLength = 80) {
@@ -65,7 +90,7 @@ async function readStatsSnapshot(db) {
        FROM users`,
     ),
     db.allAsync(
-      `SELECT username, total_time, is_online
+      `SELECT username, total_time, is_online, is_afk
        FROM users
        WHERE total_time > 0 OR is_online = 1
        ORDER BY total_time DESC
@@ -89,12 +114,21 @@ async function readStatsSnapshot(db) {
 }
 
 function buildDiscordPayload(snapshot, options = {}) {
+  const dashboardUrl = options.dashboardUrl || null;
   const leaderboardText = snapshot.leaderboard.length
     ? snapshot.leaderboard
         .map(
-          (user, index) =>
-            `**${index + 1}.** ${escapeDiscordMarkdown(user.username, 48)} - ` +
-            `\`${formatHours(user.total_time)}\`${user.is_online ? " (online)" : ""}`,
+          (user, index) => {
+            const status = user.is_afk
+              ? " (AFK)"
+              : user.is_online
+                ? " (online)"
+                : "";
+            return (
+              `**${index + 1}.** ${escapeDiscordMarkdown(user.username, 48)} - ` +
+              `\`${formatHours(user.total_time)}\`${status}`
+            );
+          },
         )
         .join("\n")
     : "No activity has been tracked yet.";
@@ -110,15 +144,16 @@ function buildDiscordPayload(snapshot, options = {}) {
     : "No channel activity yet.";
 
   return {
-    username: "UC Stats Tracker",
+    username: "Unknown Cyberia Stats",
     allowed_mentions: { parse: [] },
     embeds: [
       {
-        title: "TeamSpeak Statistics",
-        color: 0x6378ff,
+        title: "Unknown Cyberia TeamSpeak Statistics",
+        url: dashboardUrl || undefined,
+        color: 0x9b7abb,
         description: leaderboardText,
         fields: [
-          { name: "Players", value: String(snapshot.totals.users || 0), inline: true },
+          { name: "Users", value: String(snapshot.totals.users || 0), inline: true },
           { name: "Online", value: String(snapshot.totals.online || 0), inline: true },
           {
             name: "Tracked time",
@@ -131,9 +166,20 @@ function buildDiscordPayload(snapshot, options = {}) {
             inline: true,
           },
           { name: "Top channels", value: channelText, inline: false },
+          ...(dashboardUrl
+            ? [
+                {
+                  name: "Website",
+                  value: `<${dashboardUrl}>`,
+                  inline: false,
+                },
+              ]
+            : []),
         ],
         footer: {
-          text: `Automatic report | Every ${options.intervalMinutes || DEFAULT_INTERVAL_MINUTES} minutes`,
+          text:
+            `Automatic report | Every ${options.intervalMinutes || DEFAULT_INTERVAL_MINUTES} minutes` +
+            (dashboardUrl ? ` | ${dashboardUrl}` : ""),
         },
         timestamp: new Date().toISOString(),
       },
@@ -147,6 +193,7 @@ function createDiscordReporter(options) {
   const intervalMinutes = parseIntervalMinutes(options.intervalMinutes);
   const logger = options.logger || console;
   let webhookUrl = null;
+  let dashboardUrl = null;
   let configError = null;
   let lastError = null;
   let lastAttemptAt = 0;
@@ -156,6 +203,12 @@ function createDiscordReporter(options) {
     webhookUrl = validateDiscordWebhookUrl(options.webhookUrl);
   } catch (error) {
     configError = error;
+    logger.error(`[Discord] ${error.message}`);
+  }
+
+  try {
+    dashboardUrl = validatePublicDashboardUrl(options.dashboardUrl);
+  } catch (error) {
     logger.error(`[Discord] ${error.message}`);
   }
 
@@ -183,7 +236,10 @@ function createDiscordReporter(options) {
     lastAttemptAt = Date.now();
 
     const snapshot = await readStatsSnapshot(db);
-    const payload = buildDiscordPayload(snapshot, { intervalMinutes });
+    const payload = buildDiscordPayload(snapshot, {
+      intervalMinutes,
+      dashboardUrl,
+    });
     const endpoint = new URL(webhookUrl);
     endpoint.searchParams.set("wait", "true");
 
@@ -253,6 +309,7 @@ function createDiscordReporter(options) {
       interval_minutes: intervalMinutes,
       last_sent_at: await getLastSentAt(),
       last_error: lastError || (configError ? configError.message : null),
+      dashboard_url: dashboardUrl,
     };
   }
 
@@ -270,5 +327,6 @@ module.exports = {
   createDiscordReporter,
   escapeDiscordMarkdown,
   parseIntervalMinutes,
+  validatePublicDashboardUrl,
   validateDiscordWebhookUrl,
 };

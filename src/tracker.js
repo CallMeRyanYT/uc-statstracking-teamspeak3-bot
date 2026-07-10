@@ -17,22 +17,42 @@
 
 const db = require("./database");
 
-const POLL_INTERVAL_MS =
-  parseInt(process.env.POLL_INTERVAL_MS, 10) || 60_000;
-const AWAY_THRESHOLD_MIN =
-  parseInt(process.env.AFK_AWAY_THRESHOLD_MINUTES) || 5;
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const POLL_INTERVAL_MS = parsePositiveInt(
+  process.env.POLL_INTERVAL_MS,
+  60_000,
+);
+const AWAY_THRESHOLD_MIN = parsePositiveInt(
+  process.env.AFK_AWAY_THRESHOLD_MINUTES,
+  5,
+);
 
 // uid -> { start: Date, channelId: string, channelName: string, sessionDbId: number }
 const activeSessions = new Map();
 
-// Comma-separated bot nicknames to skip tracking
-const DEFAULT_IGNORED_NICKNAMES =
-  "UC Stats Bot,serveradmin,UC Music Bot,Admonus";
+// Required exclusions cannot be removed by a custom BOT_NICKNAMES value.
+const REQUIRED_IGNORED_NICKNAMES = [
+  "UC Stats Bot",
+  process.env.TS3_BOT_NICKNAME || "",
+  "serveradmin",
+  "UC Music Bot",
+  "Admonus",
+];
 
-const BOT_NICKNAMES = (process.env.BOT_NICKNAMES || DEFAULT_IGNORED_NICKNAMES)
-  .split(",")
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
+const BOT_NICKNAMES = [
+  ...new Set(
+    [
+      ...REQUIRED_IGNORED_NICKNAMES,
+      ...(process.env.BOT_NICKNAMES || "").split(","),
+    ]
+      .map((name) => name.trim().toLowerCase())
+      .filter(Boolean),
+  ),
+];
 
 // Comma-separated channel IDs to never track
 const EXCLUDED_CHANNELS = (process.env.EXCLUDED_CHANNELS || "")
@@ -149,7 +169,7 @@ async function evaluateAway(client) {
   const now = new Date();
 
   // away is sometimes boolean, sometimes 0/1
-  const awayActive = client.away === true || client.away === 1;
+  const awayActive = client.away === true || String(client.away) === "1";
 
   if (!awayActive) {
     // They are back -- clear away state (handled by caller)
@@ -180,7 +200,15 @@ async function evaluateAway(client) {
 // processClientTick -- called every poll interval for each visible client
 // ---------------------------------------------------------------------------
 async function processClientTick(client, channelMap) {
-  if (!shouldTrackClient(client)) return false;
+  if (!shouldTrackClient(client)) {
+    if (client.uniqueIdentifier && isIgnoredNickname(client.nickname)) {
+      const removed = await resetUserTrackingData(client.uniqueIdentifier);
+      if (removed) {
+        console.log(`[Tracker] Purged ignored user ${removed.username}.`);
+      }
+    }
+    return false;
+  }
 
   const uid = client.uniqueIdentifier;
   const username = client.nickname;

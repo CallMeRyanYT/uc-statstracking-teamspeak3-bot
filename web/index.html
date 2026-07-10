@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UC Stats — TeamSpeak 3 Activity Tracker</title>
+  <title>Unknown Cyberia - TeamSpeak Activity Tracker</title>
   <meta name="description" content="Unknown Cyberia TeamSpeak 3 activity leaderboard and stats tracker." />
+  <meta name="theme-color" content="#171014" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -13,24 +15,26 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg-base:    #0b0d14;
-      --bg-card:    #111422;
-      --bg-glass:   rgba(17, 20, 34, 0.85);
-      --border:     rgba(99, 120, 255, 0.12);
-      --border-glow:rgba(99, 120, 255, 0.35);
-      --accent:     #6378ff;
-      --accent2:    #a78bfa;
-      --green:      #34d399;
-      --yellow:     #fbbf24;
-      --red:        #f87171;
-      --text-1:     #e8eaf6;
-      --text-2:     #8b92b8;
-      --text-3:     #555c80;
-      --gold:       #f6c90e;
-      --silver:     #c0c8e8;
-      --bronze:     #d4855a;
-      --radius:     14px;
-      --shadow:     0 8px 40px rgba(0,0,0,0.55);
+      --bg-base:    #171014;
+      --bg-card:    #241a1e;
+      --bg-raised:  #2b2025;
+      --bg-glass:   rgba(36, 26, 30, 0.92);
+      --border:     rgba(203, 163, 186, 0.16);
+      --border-glow:rgba(176, 133, 199, 0.48);
+      --accent:     #df72aa;
+      --accent2:    #a986c2;
+      --green:      #72c77b;
+      --yellow:     #f0c763;
+      --red:        #ef727e;
+      --cyan:       #6bc8c4;
+      --text-1:     #f5edf0;
+      --text-2:     #c4b4ba;
+      --text-3:     #88777e;
+      --gold:       #f0c763;
+      --silver:     #cbc3cf;
+      --bronze:     #cf8d71;
+      --radius:     8px;
+      --shadow:     0 18px 60px rgba(7, 3, 5, 0.58);
     }
 
     html { scroll-behavior: smooth; }
@@ -49,9 +53,9 @@
       position: fixed;
       inset: 0;
       background-image:
-        linear-gradient(rgba(99,120,255,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(99,120,255,0.04) 1px, transparent 1px);
-      background-size: 40px 40px;
+        linear-gradient(rgba(214, 153, 187, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(214, 153, 187, 0.025) 1px, transparent 1px);
+      background-size: 44px 44px;
       pointer-events: none;
       z-index: 0;
     }
@@ -76,11 +80,12 @@
     }
 
     .logo-icon {
-      width: 46px; height: 46px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border-radius: 12px;
+      width: 52px; height: 52px;
+      background: #120c0f;
+      border: 1px solid var(--border-glow);
+      border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 0 24px rgba(99,120,255,0.4);
+      box-shadow: 0 0 28px rgba(169, 134, 194, 0.18);
       flex-shrink: 0;
     }
 
@@ -93,19 +98,13 @@
       vertical-align: -0.14em;
     }
 
-    .logo-icon .svg-icon {
-      --icon-size: 24px;
-      color: #fff;
-    }
+    .logo-icon img { width: 100%; height: 100%; display: block; }
 
     .logo-text h1 {
       font-size: 1.5rem;
       font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(90deg, var(--text-1), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      color: var(--text-1);
+      letter-spacing: 0;
     }
 
     .logo-text p {
@@ -113,6 +112,14 @@
       color: var(--text-3);
       font-weight: 400;
       margin-top: 2px;
+    }
+
+    .logo-kicker {
+      color: var(--accent2);
+      font-size: 0.66rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 2px;
     }
 
     .header-status {
@@ -483,12 +490,14 @@
       justify-content: center;
       padding: 20px;
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
-      transition: opacity 0.25s;
+      transition: opacity 0.25s, visibility 0.25s;
     }
 
     .modal-overlay.open {
       opacity: 1;
+      visibility: visible;
       pointer-events: all;
     }
 
@@ -718,6 +727,232 @@
       z-index: 999;
     }
 
+    /* Unknown Cyberia visual system */
+    body * { letter-spacing: 0; }
+
+    .stat-card {
+      position: relative;
+      overflow: hidden;
+      background: #241a1e;
+      box-shadow: 0 14px 36px rgba(8, 3, 6, 0.2);
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 2px;
+      background: var(--accent2);
+    }
+
+    .stat-card:nth-child(2)::before { background: var(--green); }
+    .stat-card:nth-child(3)::before { background: var(--accent); }
+    .stat-card:nth-child(4)::before { background: var(--cyan); }
+    .stat-card:nth-child(2) .icon { color: var(--green); }
+    .stat-card:nth-child(3) .icon { color: var(--accent); }
+    .stat-card:nth-child(4) .icon { color: var(--cyan); }
+
+    .panel {
+      background: #241a1e;
+      box-shadow: 0 14px 38px rgba(8, 3, 6, 0.18);
+    }
+
+    .panel-header { background: rgba(72, 45, 57, 0.18); }
+
+    .tab-btn.active {
+      background: rgba(169, 134, 194, 0.16);
+      border-color: var(--accent2);
+      color: var(--text-1);
+    }
+
+    .leaderboard-table tr.user-row:hover,
+    .online-item:hover { background: rgba(223, 114, 170, 0.06); }
+
+    .leaderboard-table td,
+    .online-item,
+    .compact-row { border-bottom-color: rgba(203, 163, 186, 0.08); }
+
+    .activity-type {
+      background: rgba(169, 134, 194, 0.13);
+      color: var(--accent2);
+    }
+
+    .online-time.afk { color: var(--yellow); }
+
+    .modal {
+      background: #281d22;
+      border-radius: 8px;
+      box-shadow: var(--shadow), 0 0 52px rgba(169, 134, 194, 0.13);
+    }
+
+    .action-btn,
+    .challenge-code,
+    .modal-stat { background: rgba(169, 134, 194, 0.08); }
+    .action-btn:hover { background: rgba(223, 114, 170, 0.12); }
+    .modal-stat { border-radius: 8px; }
+    .toast { background: #281d22; }
+    [data-tip]:hover::after { background: #2b2025; }
+
+    footer a {
+      color: var(--accent2);
+      text-decoration: none;
+    }
+
+    footer a:hover { color: var(--accent); text-decoration: underline; }
+
+    body.honor-locked { overflow: hidden; }
+
+    .honor-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(10, 5, 8, 0.88);
+      backdrop-filter: blur(11px) saturate(0.65);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 180ms ease, visibility 180ms ease;
+    }
+
+    .honor-overlay.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .honor-dialog {
+      position: relative;
+      width: min(560px, 100%);
+      overflow: hidden;
+      border: 1px solid rgba(203, 163, 186, 0.28);
+      border-radius: 8px;
+      background: #281d22;
+      padding: 34px;
+      box-shadow: 0 28px 90px rgba(0, 0, 0, 0.64), 0 0 54px rgba(169, 134, 194, 0.16);
+      text-align: center;
+      transform: translateY(10px) scale(0.98);
+      transition: transform 180ms ease;
+    }
+
+    .honor-overlay.open .honor-dialog { transform: translateY(0) scale(1); }
+    .honor-dialog:focus { outline: none; }
+
+    .honor-dialog::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent), var(--cyan));
+    }
+
+    .honor-mark,
+    .honor-mini-mark {
+      display: grid;
+      place-items: center;
+      background: #171014;
+      border: 1px solid rgba(169, 134, 194, 0.5);
+      color: var(--accent2);
+      font-weight: 800;
+    }
+
+    .honor-mark {
+      width: 68px;
+      height: 68px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      font-size: 1.25rem;
+      box-shadow: 0 0 28px rgba(169, 134, 194, 0.18);
+    }
+
+    .honor-kicker {
+      color: var(--accent);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .honor-dialog h2 {
+      margin-top: 5px;
+      color: var(--text-1);
+      font-size: 2.3rem;
+      line-height: 1.08;
+    }
+
+    .honor-copy {
+      max-width: 450px;
+      margin: 18px auto 0;
+      color: var(--text-1);
+      font-size: 1rem;
+      line-height: 1.55;
+    }
+
+    .honor-aside {
+      max-width: 440px;
+      margin: 10px auto 24px;
+      color: var(--text-2);
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .honor-close {
+      min-width: 180px;
+      min-height: 40px;
+      border: 1px solid var(--accent2);
+      border-radius: 8px;
+      background: rgba(169, 134, 194, 0.14);
+      color: var(--text-1);
+      font: 600 0.86rem 'Outfit', sans-serif;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 150ms ease, border-color 150ms ease;
+    }
+
+    .honor-close:hover:not(:disabled) {
+      background: rgba(223, 114, 170, 0.18);
+      border-color: var(--accent);
+    }
+
+    .honor-close:disabled {
+      cursor: wait;
+      opacity: 0.64;
+    }
+
+    .honor-mini {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      z-index: 70;
+      width: min(340px, calc(100vw - 36px));
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      border: 1px solid rgba(203, 163, 186, 0.22);
+      border-radius: 8px;
+      background: rgba(40, 29, 34, 0.96);
+      padding: 11px 13px;
+      box-shadow: 0 14px 42px rgba(0, 0, 0, 0.42);
+      pointer-events: none;
+    }
+
+    .honor-mini-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      flex: 0 0 34px;
+      font-size: 0.7rem;
+    }
+
+    .honor-mini strong,
+    .honor-mini span { display: block; }
+    .honor-mini strong { color: var(--text-1); font-size: 0.82rem; }
+    .honor-mini span { color: var(--text-2); font-size: 0.7rem; line-height: 1.35; }
+
     @media (max-width: 600px) {
       .page { padding: 0 12px 40px; }
       header { padding: 22px 0 20px; }
@@ -752,6 +987,13 @@
       .modal-body { padding: 18px 16px; }
       .modal-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
       .modal-stat { padding: 10px; }
+      .honor-dialog { padding: 28px 20px 22px; }
+      .honor-dialog h2 { font-size: 2rem; }
+      .honor-overlay {
+        background: rgba(10, 5, 8, 0.96);
+        backdrop-filter: none;
+      }
+      .honor-mini { left: 12px; bottom: 12px; width: min(300px, calc(100vw - 24px)); }
     }
 
     /* Scrollbar */
@@ -817,15 +1059,38 @@
     <path d="M7 5h10l-3-3h3.2L22 6.8l-4.8 4.8H14l3-3H7V5Zm10 14H7l3 3H6.8L2 17.2l4.8-4.8H10l-3 3h10V19Z"/>
   </symbol>
 </svg>
-<div class="page">
+<div class="honor-overlay open" id="honor-overlay" role="dialog" aria-modal="true" aria-labelledby="honor-title" aria-describedby="honor-copy">
+  <section class="honor-dialog" id="honor-dialog" tabindex="-1">
+    <div class="honor-mark" aria-hidden="true">AL</div>
+    <div class="honor-kicker">Unknown Cyberia honors</div>
+    <h2 id="honor-title">Alex Lazau</h2>
+    <p class="honor-copy" id="honor-copy">For distinguished service to being mentioned on a statistics page he almost certainly did not request.</p>
+    <p class="honor-aside">Officially responsible for 0% of the tracked hours and 100% of this interruption.</p>
+    <button class="honor-close" id="honor-close" type="button" onclick="closeHonorableMention()" disabled>
+      <svg class="svg-icon" aria-hidden="true"><use href="#icon-clock"></use></svg>
+      <span id="honor-close-text">Close in 5s</span>
+    </button>
+  </section>
+</div>
+
+<aside class="honor-mini" id="honor-mini" aria-label="Permanent honorable mention" hidden>
+  <div class="honor-mini-mark" aria-hidden="true">AL</div>
+  <div>
+    <strong>Alex Lazau</strong>
+    <span>Still honored. Still occupying screen space.</span>
+  </div>
+</aside>
+
+<div class="page" id="dashboard-page">
 
   <!-- ── Header ─────────────────────────────────────────────────────────── -->
   <header>
     <div class="logo">
-      <div class="logo-icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-radio"></use></svg></div>
+      <div class="logo-icon"><img src="/favicon.svg" alt="" /></div>
       <div class="logo-text">
-        <h1>UC Stats Tracker</h1>
-        <p>TeamSpeak 3 Activity Monitoring</p>
+        <div class="logo-kicker">TeamSpeak activity tracker</div>
+        <h1>Unknown Cyberia</h1>
+        <p>Live presence, sessions, and channel statistics</p>
       </div>
     </div>
     <div class="header-status">
@@ -842,7 +1107,7 @@
   <div class="stats-row" id="stats-row">
     <div class="stat-card">
       <div class="icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-users"></use></svg></div>
-      <div class="label">Total Players</div>
+      <div class="label">Total Users</div>
       <div class="value" id="sc-users">—</div>
     </div>
     <div class="stat-card">
@@ -880,7 +1145,7 @@
         <thead>
           <tr>
             <th style="width:48px; text-align:center;">#</th>
-            <th>Player</th>
+            <th>User</th>
             <th>Time</th>
             <th>Status</th>
             <th>Last Seen</th>
@@ -934,7 +1199,7 @@
   <p class="refresh-info" id="last-refresh-text">Auto-refreshes every 30 seconds</p>
 
   <footer>
-    UC Stats Tracker — TeamSpeak 3 Activity Bot &nbsp;|&nbsp; Data refreshes every 60s
+    Unknown Cyberia TeamSpeak Tracker &nbsp;|&nbsp; <a id="public-site-link" href="https://uct.aquaweb.cc/">uct.aquaweb.cc</a>
   </footer>
 </div>
 
@@ -945,7 +1210,7 @@
       <div style="display:flex;align-items:center;gap:12px">
         <div class="avatar" id="modal-avatar">?</div>
         <div>
-          <div style="font-size:1.1rem;font-weight:700" id="modal-name">Player</div>
+          <div style="font-size:1.1rem;font-weight:700" id="modal-name">User</div>
           <div id="modal-badge" style="margin-top:4px"></div>
         </div>
       </div>
@@ -961,7 +1226,7 @@
       <div class="section-title">Recent Sessions</div>
       <div id="modal-sessions" style="font-size:0.8rem;color:var(--text-2);line-height:1.8"></div>
       <div class="modal-actions" id="user-admin-actions" hidden>
-        <button class="action-btn danger" id="reset-user-btn" onclick="resetCurrentUser()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-trash"></use></svg> Reset this player</button>
+        <button class="action-btn danger" id="reset-user-btn" onclick="resetCurrentUser()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-trash"></use></svg> Reset this user</button>
       </div>
     </div>
   </div>
@@ -985,10 +1250,8 @@
 <script>
   // ── Helpers ──────────────────────────────────────────────────────────────
   function fmtHours(h) {
-    if (!h || isNaN(h)) return '0h 0m';
-    const hrs = Math.floor(h);
-    const min = Math.round((h - hrs) * 60);
-    return `${hrs}h ${min}m`;
+    const totalMinutes = Math.max(0, Math.round((Number(h) || 0) * 60));
+    return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
   }
 
   function fmtDate(iso) {
@@ -1038,6 +1301,12 @@
   let currentModalUid = null;
   let currentModalName = '';
   let pendingAdminChallenge = null;
+  const HONOR_CLOSE_DELAY_SECONDS = 5;
+  const HONOR_REAPPEAR_MS = 5 * 60_000;
+  let honorCountdownTimer = null;
+  let honorReappearTimer = null;
+  let honorSecondsRemaining = HONOR_CLOSE_DELAY_SECONDS;
+  let honorIsOpen = false;
   let adminState = {
     authorized: false,
     mode: null,
@@ -1046,6 +1315,75 @@
     discord: { configured: false },
   };
   const timeKeys = { total: 'total_time', daily: 'daily_time', weekly: 'weekly_time', monthly: 'monthly_time' };
+
+  function updateHonorButton() {
+    const button = document.getElementById('honor-close');
+    const text = document.getElementById('honor-close-text');
+    const icon = button.querySelector('use');
+    const waiting = honorSecondsRemaining > 0;
+
+    button.disabled = waiting;
+    text.textContent = waiting
+      ? `Close in ${honorSecondsRemaining}s`
+      : 'Return to dashboard';
+    icon.setAttribute('href', waiting ? '#icon-clock' : '#icon-close');
+  }
+
+  function showHonorableMention() {
+    if (honorIsOpen) return;
+
+    const overlay = document.getElementById('honor-overlay');
+    const mini = document.getElementById('honor-mini');
+    const page = document.getElementById('dashboard-page');
+    honorIsOpen = true;
+    honorSecondsRemaining = HONOR_CLOSE_DELAY_SECONDS;
+    clearTimeout(honorReappearTimer);
+    clearInterval(honorCountdownTimer);
+    overlay.classList.add('open');
+    overlay.removeAttribute('aria-hidden');
+    mini.hidden = true;
+    document.body.classList.add('honor-locked');
+    page.inert = true;
+    document.getElementById('modal-overlay').inert = true;
+    document.getElementById('admin-modal-overlay').inert = true;
+    updateHonorButton();
+    document.getElementById('honor-dialog').focus({ preventScroll: true });
+
+    honorCountdownTimer = setInterval(() => {
+      honorSecondsRemaining -= 1;
+      updateHonorButton();
+      if (honorSecondsRemaining <= 0) clearInterval(honorCountdownTimer);
+    }, 1000);
+  }
+
+  function closeHonorableMention() {
+    if (!honorIsOpen || honorSecondsRemaining > 0) return;
+
+    const overlay = document.getElementById('honor-overlay');
+    const mini = document.getElementById('honor-mini');
+    honorIsOpen = false;
+    clearInterval(honorCountdownTimer);
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    mini.hidden = false;
+    document.body.classList.remove('honor-locked');
+    document.getElementById('dashboard-page').inert = false;
+    document.getElementById('modal-overlay').inert = false;
+    document.getElementById('admin-modal-overlay').inert = false;
+    honorReappearTimer = setTimeout(showHonorableMention, HONOR_REAPPEAR_MS);
+  }
+
+  function setPublicSiteLink(rawUrl) {
+    const link = document.getElementById('public-site-link');
+    try {
+      const url = new URL(rawUrl);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported URL');
+      link.href = url.href;
+      link.textContent = url.host || url.href;
+    } catch {
+      link.hidden = true;
+    }
+  }
 
   function isLoopbackDashboard() {
     return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -1058,6 +1396,8 @@
     } catch {
       return;
     }
+
+    setPublicSiteLink(config.public_dashboard_url || 'https://uct.aquaweb.cc/');
 
     if (isLoopbackDashboard() && config.admin_port) {
       const localBase = `http://${location.hostname}:${config.admin_port}`;
@@ -1151,7 +1491,7 @@
       </div>
       <div class="admin-section">
         <h3>Tracked data</h3>
-        <p>This permanently removes every player, session, channel total, activity event, and heatmap entry.</p>
+        <p>This permanently removes every user, session, channel total, activity event, and heatmap entry.</p>
         <div class="modal-actions">
           <button class="action-btn danger" id="reset-all-btn" onclick="resetAllData()">${svgIcon('trash')} Reset all data</button>
           ${adminState.mode === 'teamspeak' ? '<button class="action-btn" onclick="logoutAdmin()">Sign out</button>' : ''}
@@ -1359,9 +1699,9 @@
         <div class="online-dot${u.is_afk ? ' afk' : ''}"></div>
         <div class="online-info">
           <div class="online-name">${esc(u.username)}${u.is_afk ? ' [AFK]' : ''}</div>
-          <div class="online-detail">${esc(u.channel || '')}</div>
+          <div class="online-detail">${esc(u.channel || '')}${u.is_afk ? ' | Tracking paused' : ''}</div>
         </div>
-        <div class="online-time">${fmtHours(u.sessionHours)}</div>
+        <div class="online-time${u.is_afk ? ' afk' : ''}">${u.is_afk ? 'AFK' : fmtHours(u.sessionHours)}</div>
       </li>`).join('');
   }
 
@@ -1458,7 +1798,7 @@
         const t = tickMap[i] || 0;
         const intensity = Math.round((t / maxTick) * 100);
         const bg = t > 0
-          ? `linear-gradient(135deg, rgba(99,120,255,${0.15 + intensity/100*0.85}), rgba(167,139,250,${0.1 + intensity/100*0.5}))`
+          ? `linear-gradient(135deg, rgba(169,134,194,${0.15 + intensity/100*0.85}), rgba(223,114,170,${0.1 + intensity/100*0.5}))`
           : 'var(--border)';
         return `<div class="heatmap-cell" data-tip="${i}:00 – ${i+1 < 10 ? '0':''}${i+1}:00 (${fmtHours(t * hoursPerTick)})" style="background:${bg}"></div>`;
       }).join('');
@@ -1504,6 +1844,7 @@
   // Close on Escape
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
+      if (honorIsOpen) return;
       closeModal();
       closeAdminModal();
     }
@@ -1529,6 +1870,7 @@
   setInterval(refreshAll, 30_000);
 
   // Initial load
+  showHonorableMention();
   initializeAdminAccess();
   refreshAll();
 </script>

@@ -15,7 +15,10 @@ const path = require("path");
 
 const db = require("./database");
 const { TeamSpeakAdminAuth } = require("./admin-auth");
-const { createDiscordReporter } = require("./discord");
+const {
+  createDiscordReporter,
+  validatePublicDashboardUrl,
+} = require("./discord");
 const {
   processClientTick,
   reconcileOfflineClients,
@@ -89,6 +92,19 @@ const HOST_ADMIN_PORT = parsePositiveInt(
   process.env.HOST_ADMIN_PORT,
   ADMIN_PORT,
 );
+function resolvePublicDashboardUrl(value) {
+  const fallback = "https://uct.aquaweb.cc/";
+  try {
+    return validatePublicDashboardUrl(value || fallback) || fallback;
+  } catch (error) {
+    console.error(`[Config] ${error.message} Using ${fallback} instead.`);
+    return fallback;
+  }
+}
+
+const PUBLIC_DASHBOARD_URL = resolvePublicDashboardUrl(
+  String(process.env.PUBLIC_DASHBOARD_URL || "").trim(),
+);
 const TS3_CONNECT_TIMEOUT_MS = parsePositiveInt(
   process.env.TS3_CONNECT_TIMEOUT_MS,
   10_000,
@@ -110,6 +126,7 @@ const discordReporter = createDiscordReporter({
   db,
   webhookUrl: process.env.DISCORD_WEBHOOK_URL,
   intervalMinutes: process.env.DISCORD_REPORT_INTERVAL_MINUTES,
+  dashboardUrl: PUBLIC_DASHBOARD_URL,
 });
 
 function checkTcpReachable(host, port, timeoutMs) {
@@ -129,7 +146,7 @@ function checkTcpReachable(host, port, timeoutMs) {
       done(
         new Error(
           `Timed out opening TCP ${host}:${port} after ${timeoutMs}ms. ` +
-            "Check that this is the TeamSpeak ServerQuery TCP port and that the tunnel/firewall allows TCP.",
+            "Check that this is the TeamSpeak ServerQuery TCP port and that the network/firewall allows TCP.",
         ),
       );
     });
@@ -237,6 +254,7 @@ app.get("/api/config", (_req, res) => {
     admin_port: HOST_ADMIN_PORT,
     discord_configured: discordReporter.configured,
     remote_admin_available: true,
+    public_dashboard_url: PUBLIC_DASHBOARD_URL,
   });
 });
 
@@ -787,6 +805,7 @@ console.log(
   `   Virtual server: sid=${TS3_SERVER_ID}, voice_port=${TS3_SERVER_PORT}`,
 );
 console.log(`   Web Dashboard : http://localhost:${WEB_PORT}`);
+console.log(`   Public URL    : ${PUBLIC_DASHBOARD_URL}`);
 console.log(`   Local Admin   : http://127.0.0.1:${HOST_ADMIN_PORT}`);
 console.log(
   `   Discord      : ${discordReporter.configured ? `every ${discordReporter.intervalMinutes}m` : "not configured"}`,
