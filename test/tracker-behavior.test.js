@@ -15,11 +15,20 @@ const fakeDb = {
       return null;
     }
 
-    if (sql.includes("SELECT username, last_update, is_online")) {
+    if (sql.includes("SELECT u.username, u.last_update, u.is_online")) {
+      if (scenario === "blacklisted") {
+        return {
+          username: "Blocked User",
+          last_update: new Date(Date.now() - 60_000).toISOString(),
+          is_online: 1,
+          is_blacklisted: 1,
+        };
+      }
       return {
         username: "Away User",
         last_update: new Date(Date.now() - 60_000).toISOString(),
         is_online: 1,
+        is_blacklisted: 0,
       };
     }
     if (sql.includes("SELECT away_since")) {
@@ -45,7 +54,7 @@ require.cache[databasePath] = {
   exports: fakeDb,
 };
 delete require.cache[trackerPath];
-const { processClientTick } = require(trackerPath);
+const { getActiveSessions, processClientTick } = require(trackerPath);
 
 test("an away client over five minutes gains only AFK time", async () => {
   const tracked = await processClientTick(
@@ -102,4 +111,44 @@ test("UC Music Bot is purged instead of tracked", async () => {
     musicWrites.some(({ sql }) => sql.includes("INSERT INTO users")),
     false,
   );
+});
+
+test("blacklisted clients keep presence without gaining tracked data", async () => {
+  scenario = "blacklisted";
+  const writeStart = writes.length;
+  const tracked = await processClientTick(
+    {
+      type: 0,
+      uniqueIdentifier: "blacklisted-user-uid",
+      nickname: "Blocked User",
+      channelId: "7",
+      away: 0,
+    },
+    { 7: "General" },
+  );
+  const blacklistWrites = writes.slice(writeStart);
+
+  assert.equal(tracked, true);
+  assert.equal(
+    blacklistWrites.some(({ sql }) => sql.includes("INSERT INTO users")),
+    true,
+  );
+  for (const forbiddenWrite of [
+    "INSERT INTO sessions",
+    "INSERT INTO events",
+    "total_time   = total_time   + ?",
+    "afk_time = afk_time + ?",
+    "INSERT INTO channel_time",
+    "INSERT INTO hourly_activity",
+  ]) {
+    assert.equal(
+      blacklistWrites.some(({ sql }) => sql.includes(forbiddenWrite)),
+      false,
+      `unexpected tracked-data write: ${forbiddenWrite}`,
+    );
+  }
+
+  const activeSession = getActiveSessions().get("blacklisted-user-uid");
+  assert.equal(activeSession.blacklisted, true);
+  assert.equal(activeSession.sessionDbId, null);
 });

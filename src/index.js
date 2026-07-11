@@ -30,6 +30,7 @@ const {
   purgeIgnoredUsers,
   resetUserTrackingData,
   resetAllTrackingData,
+  setUserBlacklisted,
 } = require("./tracker");
 
 // ---------------------------------------------------------------------------
@@ -249,6 +250,16 @@ function requireRemoteAdmin(req, res, next) {
   next();
 }
 
+async function listBlacklistedUsers() {
+  const users = await db.allAsync(
+    `SELECT u.uid, u.username, u.is_online, u.is_afk, u.last_seen
+       FROM user_blacklist b
+       JOIN users u ON u.uid = b.uid
+      ORDER BY lower(u.username), u.uid`,
+  );
+  return users || [];
+}
+
 app.get("/api/config", (_req, res) => {
   res.json({
     admin_port: HOST_ADMIN_PORT,
@@ -262,14 +273,19 @@ app.get(
   "/api/admin/status",
   asyncRoute(async (req, res) => {
     const session = getRemoteAdminSession(req);
+    const [discord, blacklistedUsers] = session
+      ? await Promise.all([
+          discordReporter.getStatus(),
+          listBlacklistedUsers(),
+        ])
+      : [{ configured: discordReporter.configured }, []];
     res.json({
       authorized: Boolean(session),
       mode: session ? "teamspeak" : null,
       username: session ? session.username : null,
       ts3_connected: isConnected,
-      discord: session
-        ? await discordReporter.getStatus()
-        : { configured: discordReporter.configured },
+      discord,
+      blacklisted_users: blacklistedUsers,
     });
   }),
 );
@@ -340,6 +356,28 @@ async function resetAllHandler(req, res) {
   res.json({ ok: true, deleted });
 }
 
+async function blacklistUserHandler(req, res) {
+  const uid = String(req.params.uid || "");
+  if (
+    !uid ||
+    req.body.uid !== uid ||
+    typeof req.body.blacklisted !== "boolean"
+  ) {
+    return res.status(400).json({ error: "User and blacklist state are required." });
+  }
+
+  const user = await runTrackingMaintenance(() =>
+    setUserBlacklisted(uid, req.body.blacklisted),
+  );
+  if (!user) return res.status(404).json({ error: "User not found." });
+
+  const action = req.body.blacklisted ? "blacklisted" : "unblacklisted";
+  console.log(
+    `[Admin] ${res.locals.adminActor || "Local host"} ${action} ${user.username} (${uid}).`,
+  );
+  res.json({ ok: true, user });
+}
+
 async function sendDiscordHandler(_req, res) {
   if (!discordReporter.configured) {
     return res.status(400).json({ error: "Discord webhook is not configured." });
@@ -356,6 +394,12 @@ app.delete(
   requireSameOriginJson,
   requireRemoteAdmin,
   asyncRoute(resetUserHandler),
+);
+app.post(
+  "/api/admin/users/:uid/blacklist",
+  requireSameOriginJson,
+  requireRemoteAdmin,
+  asyncRoute(blacklistUserHandler),
 );
 app.delete(
   "/api/admin/data",
@@ -374,11 +418,15 @@ app.post(
 app.get("/api/leaderboard", async (_req, res) => {
   try {
     const rows = await db.allAsync(
-      `SELECT uid, username, total_time, daily_time, weekly_time,
-              monthly_time, afk_time, session_count, last_seen, is_online, is_afk
-       FROM users
-       WHERE total_time > 0 OR is_online = 1
-       ORDER BY total_time DESC LIMIT 50`,
+      `SELECT u.uid, u.username, u.total_time, u.daily_time, u.weekly_time,
+              u.monthly_time, u.afk_time, u.session_count, u.last_seen,
+              u.is_online, u.is_afk,
+              CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+         FROM users u
+         LEFT JOIN user_blacklist b ON b.uid = u.uid
+        WHERE u.total_time > 0 OR u.is_online = 1 OR b.uid IS NOT NULL
+        ORDER BY is_blacklisted ASC, u.total_time DESC
+        LIMIT 50`,
     );
     res.json(rows || []);
   } catch (e) {
@@ -391,7 +439,14 @@ app.get("/api/leaderboard", async (_req, res) => {
 app.get("/api/user/:uid", async (req, res) => {
   try {
     const uid = req.params.uid;
-    const user = await db.getAsync("SELECT * FROM users WHERE uid = ?", [uid]);
+    const user = await db.getAsync(
+      `SELECT u.*,
+              CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+         FROM users u
+         LEFT JOIN user_blacklist b ON b.uid = u.uid
+        WHERE u.uid = ?`,
+      [uid],
+    );
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const channels = await db.allAsync(
@@ -413,8 +468,14 @@ app.get("/api/user/:uid", async (req, res) => {
       [uid],
     );
     const rankRow = await db.getAsync(
-      "SELECT COUNT(*) AS r FROM users WHERE total_time > ?",
-      [user.total_time],
+      `SELECT COUNT(*) AS r
+         FROM users u
+         LEFT JOIN user_blacklist b ON b.uid = u.uid
+        WHERE (u.total_time > 0 OR u.is_online = 1 OR b.uid IS NOT NULL)
+          AND ((CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END) < ?
+            OR ((CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END) = ?
+                AND u.total_time > ?))`,
+      [user.is_blacklisted, user.is_blacklisted, user.total_time],
     );
 
     res.json({
@@ -438,12 +499,20 @@ app.get("/api/online", async (_req, res) => {
     const result = [];
     for (const [uid, sess] of sessions) {
       const row = await db
-        .getAsync("SELECT username, is_afk FROM users WHERE uid = ?", [uid])
+        .getAsync(
+          `SELECT u.username, u.is_afk,
+                  CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+             FROM users u
+             LEFT JOIN user_blacklist b ON b.uid = u.uid
+            WHERE u.uid = ?`,
+          [uid],
+        )
         .catch(() => null);
       result.push({
         uid,
         username: row && row.username ? row.username : uid,
         is_afk: row && row.is_afk ? row.is_afk : 0,
+        is_blacklisted: row && row.is_blacklisted ? 1 : 0,
         sessionHours: (now - sess.start.getTime()) / 3_600_000,
         channel: sess.channelName || "",
       });
@@ -560,12 +629,17 @@ function requireLocalJson(req, res, next) {
 localAdminApp.get(
   "/api/admin/status",
   asyncRoute(async (_req, res) => {
+    const [discord, blacklistedUsers] = await Promise.all([
+      discordReporter.getStatus(),
+      listBlacklistedUsers(),
+    ]);
     res.json({
       authorized: true,
       mode: "local",
       username: "Local host",
       ts3_connected: isConnected,
-      discord: await discordReporter.getStatus(),
+      discord,
+      blacklisted_users: blacklistedUsers,
     });
   }),
 );
@@ -573,6 +647,11 @@ localAdminApp.delete(
   "/api/admin/users/:uid",
   requireLocalJson,
   asyncRoute(resetUserHandler),
+);
+localAdminApp.post(
+  "/api/admin/users/:uid/blacklist",
+  requireLocalJson,
+  asyncRoute(blacklistUserHandler),
 );
 localAdminApp.delete(
   "/api/admin/data",

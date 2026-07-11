@@ -77,6 +77,24 @@ test("marks away users as AFK instead of online in Discord", () => {
   assert.doesNotMatch(payload.embeds[0].description, /\(online\)/);
 });
 
+test("marks blacklisted users in Discord statistics", () => {
+  const payload = buildDiscordPayload({
+    totals: { users: 1, online: 1, total_hours: 1, total_sessions: 1 },
+    leaderboard: [
+      {
+        username: "Blocked User",
+        total_time: 1,
+        is_online: 1,
+        is_afk: 1,
+        is_blacklisted: 1,
+      },
+    ],
+    channels: [],
+  });
+
+  assert.match(payload.embeds[0].description, /\(AFK, blacklisted\)/);
+});
+
 test("carries rounded minutes into the next hour", () => {
   const payload = buildDiscordPayload({
     totals: { users: 1, online: 0, total_hours: 1.999, total_sessions: 1 },

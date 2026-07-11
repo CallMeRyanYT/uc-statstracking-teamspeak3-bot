@@ -14,7 +14,7 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 | AFK handling | Pauses active time after the configured away threshold |
 | Period resets | Daily, weekly, and monthly counters reset automatically |
 | Discord reports | Posts totals, top users, top channels, and the public website on a schedule |
-| Admin controls | Reset one user or all tracked data from the dashboard |
+| Admin controls | Blacklist users, reset one user, or clear all tracked data from the dashboard |
 | Stable identities | Uses the permanent TeamSpeak client UID, not the temporary connection ID |
 | Public website | Uses the configured domain or subdomain in dashboard and Discord links |
 
@@ -143,6 +143,8 @@ Dashboard editing works in two ways:
 
 Set `TS3_ADMIN_GROUP_IDS` to the comma-separated IDs that should have access. `6` is a common default for Server Admin, but confirm the ID on your server.
 
+Open a leaderboard profile and select **Blacklist user** to pause all future tracking for that permanent UID. A blacklisted user remains visible with their current Online, AFK, or Offline state, keeps their existing history, receives a **Blacklisted** badge, and is placed below tracked users. Removing the user from the blacklist starts a fresh tracked session if they are currently online. Resetting that user deletes both their history and blacklist entry.
+
 ## Config Reference
 
 | Variable | Default | Purpose |
@@ -186,7 +188,7 @@ Back up the database before a large reset:
 docker cp uc-stats-bot:/app/data/stats.sqlite ./stats-backup.sqlite
 ```
 
-Use **Manage > Reset all data** on the local dashboard to clear everything, or open a user profile and select **Reset this user**. Both actions require confirmation. Deleting the Docker volume remains an emergency fallback, but it is no longer needed for normal resets.
+Use **Manage > Reset all data** on the local dashboard to clear everything. Open a user profile to blacklist that UID or select **Reset this user**. Reset actions require confirmation; blacklisting preserves old statistics and only pauses future tracking. Deleting the Docker volume remains an emergency fallback, but it is no longer needed for normal resets.
 
 ## Troubleshooting
 

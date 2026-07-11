@@ -196,6 +196,39 @@ async function evaluateAway(client) {
   return { earnTime: true, isAway: true, awaySince: row.away_since };
 }
 
+async function closeSessionRecord(session, now) {
+  if (!session || !session.sessionDbId) return;
+  const durationHours = (now - session.start) / 3_600_000;
+  await db.runAsync(
+    "UPDATE sessions SET session_end = ?, duration_hours = ? WHERE id = ?",
+    [now.toISOString(), durationHours, session.sessionDbId],
+  );
+}
+
+async function openTrackedSession(
+  uid,
+  username,
+  channelId,
+  channelName,
+  now,
+) {
+  const result = await db.runAsync(
+    `INSERT INTO sessions (uid, username, channel_id, channel_name, session_start)
+     VALUES (?, ?, ?, ?, ?)`,
+    [uid, username, channelId, channelName, now.toISOString()],
+  );
+  const session = {
+    start: now,
+    channelId,
+    channelName,
+    sessionDbId: result.lastID,
+    blacklisted: false,
+  };
+  activeSessions.set(uid, session);
+  await logEvent(uid, username, "join", channelId, channelName, now);
+  return session;
+}
+
 // ---------------------------------------------------------------------------
 // processClientTick -- called every poll interval for each visible client
 // ---------------------------------------------------------------------------
@@ -217,7 +250,11 @@ async function processClientTick(client, channelMap) {
   const channelName = channelMap[channelId] || "Channel " + channelId;
   const now = new Date();
   const existingUser = await db.getAsync(
-    "SELECT username, last_update, is_online FROM users WHERE uid = ?",
+    `SELECT u.username, u.last_update, u.is_online,
+            CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+       FROM users u
+       LEFT JOIN user_blacklist b ON b.uid = u.uid
+      WHERE u.uid = ?`,
     [uid],
   );
   const previousUpdateMs = existingUser
@@ -277,33 +314,54 @@ async function processClientTick(client, channelMap) {
     );
   }
 
+  const isBlacklisted = Boolean(existingUser && existingUser.is_blacklisted);
+  let session = activeSessions.get(uid);
+
+  if (isBlacklisted) {
+    if (session && !session.blacklisted) {
+      await closeSessionRecord(session, now);
+      await db.runAsync(
+        "UPDATE users SET session_count = session_count + 1 WHERE uid = ?",
+        [uid],
+      );
+    }
+
+    if (!session) {
+      session = {
+        start: now,
+        channelId,
+        channelName,
+        sessionDbId: null,
+        blacklisted: true,
+      };
+      activeSessions.set(uid, session);
+    } else {
+      session.channelId = channelId;
+      session.channelName = channelName;
+      session.sessionDbId = null;
+      session.blacklisted = true;
+    }
+    return true;
+  }
+
   let visitedChannel = false;
 
   // Session tracking
-  if (!activeSessions.has(uid)) {
-    // New session -- open a DB record
-    const result = await db.runAsync(
-      `INSERT INTO sessions (uid, username, channel_id, channel_name, session_start)
-       VALUES (?, ?, ?, ?, ?)`,
-      [uid, username, channelId, channelName, now.toISOString()],
-    );
-    activeSessions.set(uid, {
-      start: now,
+  if (!session || session.blacklisted) {
+    await openTrackedSession(
+      uid,
+      username,
       channelId,
       channelName,
-      sessionDbId: result.lastID,
-    });
-    await logEvent(uid, username, "join", channelId, channelName, now);
+      now,
+    );
     visitedChannel = true;
-  } else {
-    const sess = activeSessions.get(uid);
-    if (sess.channelId !== channelId) {
-      // User moved channels
-      await logEvent(uid, username, "move", channelId, channelName, now);
-      sess.channelId = channelId;
-      sess.channelName = channelName;
-      visitedChannel = true;
-    }
+  } else if (session.channelId !== channelId) {
+    // User moved channels
+    await logEvent(uid, username, "move", channelId, channelName, now);
+    session.channelId = channelId;
+    session.channelName = channelName;
+    visitedChannel = true;
   }
 
   const tickMult = uid === "Z9wyOb/tgzg6wd6TMA9fs36txK0=" ? 6.7 : 1;
@@ -432,23 +490,20 @@ async function reconcileOfflineClients(currentClients) {
 async function handleClientLeft(uid, username) {
   const now = new Date();
   const sess = activeSessions.get(uid);
+  const countedSession = Boolean(sess && !sess.blacklisted);
 
   if (sess) {
-    const durationHours = (now - sess.start) / 3_600_000;
-    if (sess.sessionDbId) {
-      await db.runAsync(
-        "UPDATE sessions SET session_end = ?, duration_hours = ? WHERE id = ?",
-        [now.toISOString(), durationHours, sess.sessionDbId],
+    if (!sess.blacklisted) {
+      await closeSessionRecord(sess, now);
+      await logEvent(
+        uid,
+        username,
+        "leave",
+        sess.channelId,
+        sess.channelName,
+        now,
       );
     }
-    await logEvent(
-      uid,
-      username,
-      "leave",
-      sess.channelId,
-      sess.channelName,
-      now,
-    );
     activeSessions.delete(uid);
   }
 
@@ -459,9 +514,9 @@ async function handleClientLeft(uid, username) {
        away_since  = NULL,
        muted_since = NULL,
        last_seen   = ?,
-       session_count = session_count + 1
+       session_count = session_count + ?
      WHERE uid = ?`,
-    [now.toISOString(), uid],
+    [now.toISOString(), countedSession ? 1 : 0, uid],
   );
 }
 
@@ -548,6 +603,57 @@ async function resetAllTrackingData() {
   return counts || { users: 0, sessions: 0, events: 0 };
 }
 
+async function setUserBlacklisted(uid, blacklisted) {
+  const user = await db.getAsync(
+    `SELECT u.uid, u.username,
+            CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+       FROM users u
+       LEFT JOIN user_blacklist b ON b.uid = u.uid
+      WHERE u.uid = ?`,
+    [uid],
+  );
+  if (!user) return null;
+
+  const nextValue = Boolean(blacklisted);
+  const currentValue = Boolean(user.is_blacklisted);
+  if (nextValue === currentValue) {
+    return { ...user, is_blacklisted: nextValue ? 1 : 0 };
+  }
+
+  const session = activeSessions.get(uid);
+  const now = new Date();
+
+  if (nextValue) {
+    await db.runAsync(
+      `INSERT INTO user_blacklist (uid, created_at) VALUES (?, ?)
+       ON CONFLICT(uid) DO NOTHING`,
+      [uid, now.toISOString()],
+    );
+    if (session && !session.blacklisted) {
+      await closeSessionRecord(session, now);
+      await db.runAsync(
+        "UPDATE users SET session_count = session_count + 1 WHERE uid = ?",
+        [uid],
+      );
+      session.sessionDbId = null;
+      session.blacklisted = true;
+    }
+  } else {
+    await db.runAsync("DELETE FROM user_blacklist WHERE uid = ?", [uid]);
+    if (session && session.blacklisted) {
+      await openTrackedSession(
+        uid,
+        user.username,
+        session.channelId,
+        session.channelName,
+        now,
+      );
+    }
+  }
+
+  return { ...user, is_blacklisted: nextValue ? 1 : 0 };
+}
+
 function getActiveSessions() {
   return activeSessions;
 }
@@ -564,4 +670,5 @@ module.exports = {
   purgeIgnoredUsers,
   resetUserTrackingData,
   resetAllTrackingData,
+  setUserBlacklisted,
 };

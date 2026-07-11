@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Unknown Cyberia - TeamSpeak Activity Tracker</title>
   <meta name="description" content="Unknown Cyberia TeamSpeak 3 activity leaderboard and stats tracker." />
-  <meta name="theme-color" content="#171014" />
+  <meta name="theme-color" content="#020005" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,26 +15,26 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg-base:    #171014;
-      --bg-card:    #241a1e;
-      --bg-raised:  #2b2025;
-      --bg-glass:   rgba(36, 26, 30, 0.92);
-      --border:     rgba(203, 163, 186, 0.16);
-      --border-glow:rgba(176, 133, 199, 0.48);
-      --accent:     #df72aa;
-      --accent2:    #a986c2;
-      --green:      #72c77b;
-      --yellow:     #f0c763;
-      --red:        #ef727e;
-      --cyan:       #6bc8c4;
-      --text-1:     #f5edf0;
-      --text-2:     #c4b4ba;
-      --text-3:     #88777e;
-      --gold:       #f0c763;
-      --silver:     #cbc3cf;
-      --bronze:     #cf8d71;
+      --bg-base:    #020005;
+      --bg-card:    #09040f;
+      --bg-raised:  #12071d;
+      --bg-glass:   rgba(7, 2, 12, 0.94);
+      --border:     rgba(141, 37, 255, 0.34);
+      --border-glow:rgba(169, 44, 255, 0.82);
+      --accent:     #df19ff;
+      --accent2:    #8d2dff;
+      --green:      #36efa0;
+      --yellow:     #ffd447;
+      --red:        #ff4d87;
+      --cyan:       #28d7ff;
+      --text-1:     #fffaff;
+      --text-2:     #c8b7d8;
+      --text-3:     #786786;
+      --gold:       #ffd447;
+      --silver:     #d6ccdf;
+      --bronze:     #d989ff;
       --radius:     8px;
-      --shadow:     0 18px 60px rgba(7, 3, 5, 0.58);
+      --shadow:     0 18px 60px rgba(0, 0, 0, 0.76);
     }
 
     html { scroll-behavior: smooth; }
@@ -53,8 +53,8 @@
       position: fixed;
       inset: 0;
       background-image:
-        linear-gradient(rgba(214, 153, 187, 0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(214, 153, 187, 0.025) 1px, transparent 1px);
+        linear-gradient(rgba(141, 45, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(141, 45, 255, 0.045) 1px, transparent 1px);
       background-size: 44px 44px;
       pointer-events: none;
       z-index: 0;
@@ -81,11 +81,11 @@
 
     .logo-icon {
       width: 52px; height: 52px;
-      background: #120c0f;
+      background: #050008;
       border: 1px solid var(--border-glow);
       border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 0 28px rgba(169, 134, 194, 0.18);
+      box-shadow: 0 0 28px rgba(141, 45, 255, 0.34);
       flex-shrink: 0;
     }
 
@@ -733,8 +733,9 @@
     .stat-card {
       position: relative;
       overflow: hidden;
-      background: #241a1e;
-      box-shadow: 0 14px 36px rgba(8, 3, 6, 0.2);
+      background: rgba(9, 4, 15, 0.96);
+      border-color: rgba(141, 45, 255, 0.45);
+      box-shadow: inset 0 0 26px rgba(92, 17, 168, 0.07), 0 0 22px rgba(93, 17, 168, 0.1);
     }
 
     .stat-card::before {
@@ -743,6 +744,7 @@
       inset: 0 0 auto;
       height: 2px;
       background: var(--accent2);
+      box-shadow: 0 0 12px currentColor;
     }
 
     .stat-card:nth-child(2)::before { background: var(--green); }
@@ -753,45 +755,47 @@
     .stat-card:nth-child(4) .icon { color: var(--cyan); }
 
     .panel {
-      background: #241a1e;
-      box-shadow: 0 14px 38px rgba(8, 3, 6, 0.18);
+      background: rgba(7, 2, 12, 0.97);
+      border-color: rgba(141, 45, 255, 0.4);
+      box-shadow: inset 0 0 30px rgba(87, 13, 166, 0.05), 0 14px 38px rgba(0, 0, 0, 0.34);
     }
 
-    .panel-header { background: rgba(72, 45, 57, 0.18); }
+    .panel-header { background: rgba(92, 20, 161, 0.09); }
 
     .tab-btn.active {
-      background: rgba(169, 134, 194, 0.16);
+      background: rgba(141, 45, 255, 0.2);
       border-color: var(--accent2);
       color: var(--text-1);
+      box-shadow: inset 0 0 12px rgba(141, 45, 255, 0.14), 0 0 9px rgba(141, 45, 255, 0.16);
     }
 
     .leaderboard-table tr.user-row:hover,
-    .online-item:hover { background: rgba(223, 114, 170, 0.06); }
+    .online-item:hover { background: rgba(141, 45, 255, 0.09); }
 
     .leaderboard-table td,
     .online-item,
-    .compact-row { border-bottom-color: rgba(203, 163, 186, 0.08); }
+    .compact-row { border-bottom-color: rgba(141, 45, 255, 0.12); }
 
     .activity-type {
-      background: rgba(169, 134, 194, 0.13);
+      background: rgba(141, 45, 255, 0.16);
       color: var(--accent2);
     }
 
     .online-time.afk { color: var(--yellow); }
 
     .modal {
-      background: #281d22;
+      background: #09040f;
       border-radius: 8px;
-      box-shadow: var(--shadow), 0 0 52px rgba(169, 134, 194, 0.13);
+      box-shadow: var(--shadow), 0 0 52px rgba(141, 45, 255, 0.2);
     }
 
     .action-btn,
     .challenge-code,
-    .modal-stat { background: rgba(169, 134, 194, 0.08); }
-    .action-btn:hover { background: rgba(223, 114, 170, 0.12); }
+    .modal-stat { background: rgba(141, 45, 255, 0.1); }
+    .action-btn:hover { background: rgba(223, 25, 255, 0.16); }
     .modal-stat { border-radius: 8px; }
-    .toast { background: #281d22; }
-    [data-tip]:hover::after { background: #2b2025; }
+    .toast { background: #09040f; }
+    [data-tip]:hover::after { background: #12071d; }
 
     footer a {
       color: var(--accent2);
@@ -800,158 +804,123 @@
 
     footer a:hover { color: var(--accent); text-decoration: underline; }
 
-    body.honor-locked { overflow: hidden; }
+    .logo-text h1 { text-shadow: 0 0 18px rgba(141, 45, 255, 0.22); }
+    .logo-kicker { color: #bd68ff; }
 
-    .honor-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      display: grid;
-      place-items: center;
-      padding: 20px;
-      background: rgba(10, 5, 8, 0.88);
-      backdrop-filter: blur(11px) saturate(0.65);
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-      transition: opacity 180ms ease, visibility 180ms ease;
+    #refresh-btn,
+    .header-btn {
+      background: #050008;
+      border-color: rgba(141, 45, 255, 0.48);
+      box-shadow: inset 0 0 13px rgba(141, 45, 255, 0.07);
     }
 
-    .honor-overlay.open {
-      opacity: 1;
-      visibility: visible;
-      pointer-events: auto;
+    #refresh-btn:hover,
+    .header-btn:hover {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 14px rgba(223, 25, 255, 0.11), 0 0 12px rgba(141, 45, 255, 0.18);
     }
 
-    .honor-dialog {
-      position: relative;
-      width: min(560px, 100%);
-      overflow: hidden;
-      border: 1px solid rgba(203, 163, 186, 0.28);
-      border-radius: 8px;
-      background: #281d22;
-      padding: 34px;
-      box-shadow: 0 28px 90px rgba(0, 0, 0, 0.64), 0 0 54px rgba(169, 134, 194, 0.16);
-      text-align: center;
-      transform: translateY(10px) scale(0.98);
-      transition: transform 180ms ease;
-    }
-
-    .honor-overlay.open .honor-dialog { transform: translateY(0) scale(1); }
-    .honor-dialog:focus { outline: none; }
-
-    .honor-dialog::before {
-      content: '';
-      position: absolute;
-      inset: 0 0 auto;
-      height: 3px;
-      background: linear-gradient(90deg, var(--accent2), var(--accent), var(--cyan));
-    }
-
-    .honor-mark,
-    .honor-mini-mark {
-      display: grid;
-      place-items: center;
-      background: #171014;
-      border: 1px solid rgba(169, 134, 194, 0.5);
-      color: var(--accent2);
-      font-weight: 800;
-    }
-
-    .honor-mark {
-      width: 68px;
-      height: 68px;
-      margin: 0 auto 18px;
-      border-radius: 50%;
-      font-size: 1.25rem;
-      box-shadow: 0 0 28px rgba(169, 134, 194, 0.18);
-    }
-
-    .honor-kicker {
-      color: var(--accent);
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    .honor-dialog h2 {
-      margin-top: 5px;
-      color: var(--text-1);
-      font-size: 2.3rem;
-      line-height: 1.08;
-    }
-
-    .honor-copy {
-      max-width: 450px;
-      margin: 18px auto 0;
-      color: var(--text-1);
-      font-size: 1rem;
-      line-height: 1.55;
-    }
-
-    .honor-aside {
-      max-width: 440px;
-      margin: 10px auto 24px;
-      color: var(--text-2);
-      font-size: 0.84rem;
-      line-height: 1.5;
-    }
-
-    .honor-close {
-      min-width: 180px;
-      min-height: 40px;
-      border: 1px solid var(--accent2);
-      border-radius: 8px;
-      background: rgba(169, 134, 194, 0.14);
-      color: var(--text-1);
-      font: 600 0.86rem 'Outfit', sans-serif;
-      cursor: pointer;
+    .status-badges {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: background 150ms ease, border-color 150ms ease;
+      flex-wrap: wrap;
+      gap: 5px;
     }
 
-    .honor-close:hover:not(:disabled) {
-      background: rgba(223, 114, 170, 0.18);
-      border-color: var(--accent);
+    .badge-blacklisted {
+      background: rgba(223, 25, 255, 0.13);
+      border: 1px solid rgba(223, 25, 255, 0.55);
+      color: #f39cff;
+      box-shadow: inset 0 0 10px rgba(223, 25, 255, 0.08), 0 0 8px rgba(223, 25, 255, 0.12);
     }
 
-    .honor-close:disabled {
-      cursor: wait;
-      opacity: 0.64;
-    }
+    .user-row.blacklisted { background: rgba(223, 25, 255, 0.025); }
+    .user-row.blacklisted .time-cell { color: var(--text-3); }
 
-    .honor-mini {
-      position: fixed;
-      left: 18px;
-      bottom: 18px;
-      z-index: 70;
-      width: min(340px, calc(100vw - 36px));
+    .online-state {
       display: flex;
-      align-items: center;
-      gap: 11px;
-      border: 1px solid rgba(203, 163, 186, 0.22);
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .blacklist-list {
+      margin-top: 14px;
+      border: 1px solid var(--border);
       border-radius: 8px;
-      background: rgba(40, 29, 34, 0.96);
-      padding: 11px 13px;
-      box-shadow: 0 14px 42px rgba(0, 0, 0, 0.42);
+      overflow: hidden;
+    }
+
+    .blacklist-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      min-height: 48px;
+      padding: 9px 11px;
+      border-bottom: 1px solid rgba(141, 45, 255, 0.14);
+    }
+
+    .blacklist-row:last-child { border-bottom: none; }
+    .blacklist-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.84rem; font-weight: 600; }
+    .blacklist-meta { color: var(--text-3); font-size: 0.7rem; margin-top: 2px; }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image: url('/alex-lazau.png');
+      background-size: 180px auto;
+      background-repeat: repeat;
+      background-position: 24px 24px;
+      opacity: 0;
+      filter: grayscale(0.2) contrast(1.1);
+      pointer-events: none;
+      transition: opacity 500ms ease;
+    }
+
+    body.alex-mode::after { opacity: 0.16; }
+
+    .alex-sticker {
+      position: fixed;
+      z-index: 3;
+      width: 78px;
+      aspect-ratio: 202 / 307;
+      object-fit: cover;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      box-shadow: 0 0 20px rgba(223, 25, 255, 0.55);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 300ms ease, transform 300ms ease;
+    }
+
+    .alex-sticker-left { left: 10px; bottom: 10px; transform: translateY(120%) rotate(-5deg); }
+    .alex-sticker-right { right: 10px; top: 42%; transform: translateX(120%) rotate(5deg); }
+    body.alex-mode .alex-sticker { opacity: 0.9; }
+    body.alex-mode .alex-sticker-left { transform: translateY(0) rotate(-5deg); }
+    body.alex-mode .alex-sticker-right { transform: translateX(0) rotate(5deg); }
+
+    body.alex-mode .logo-icon img {
+      border-radius: 6px;
+      content: url('/alex-lazau.png');
+      object-fit: cover;
+    }
+
+    body.alex-mode .stat-card:nth-child(2)::after {
+      content: '';
+      position: absolute;
+      right: 8px;
+      bottom: -12px;
+      width: 54px;
+      height: 74px;
+      background: url('/alex-lazau.png') center / cover no-repeat;
+      opacity: 0.68;
+      transform: rotate(7deg);
       pointer-events: none;
     }
-
-    .honor-mini-mark {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      flex: 0 0 34px;
-      font-size: 0.7rem;
-    }
-
-    .honor-mini strong,
-    .honor-mini span { display: block; }
-    .honor-mini strong { color: var(--text-1); font-size: 0.82rem; }
-    .honor-mini span { color: var(--text-2); font-size: 0.7rem; line-height: 1.35; }
 
     @media (max-width: 600px) {
       .page { padding: 0 12px 40px; }
@@ -987,13 +956,9 @@
       .modal-body { padding: 18px 16px; }
       .modal-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
       .modal-stat { padding: 10px; }
-      .honor-dialog { padding: 28px 20px 22px; }
-      .honor-dialog h2 { font-size: 2rem; }
-      .honor-overlay {
-        background: rgba(10, 5, 8, 0.96);
-        backdrop-filter: none;
-      }
-      .honor-mini { left: 12px; bottom: 12px; width: min(300px, calc(100vw - 24px)); }
+      .alex-sticker { width: 54px; }
+      .alex-sticker-right { display: none; }
+      body::after { background-size: 120px auto; }
     }
 
     /* Scrollbar */
@@ -1058,28 +1023,12 @@
   <symbol id="icon-move" viewBox="0 0 24 24">
     <path d="M7 5h10l-3-3h3.2L22 6.8l-4.8 4.8H14l3-3H7V5Zm10 14H7l3 3H6.8L2 17.2l4.8-4.8H10l-3 3h10V19Z"/>
   </symbol>
+  <symbol id="icon-ban" viewBox="0 0 24 24">
+    <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM4 12a8 8 0 0 1 13.1-6.2L5.8 17.1A7.96 7.96 0 0 1 4 12Zm8 8a7.96 7.96 0 0 1-4.9-1.7L18.3 7.1A8 8 0 0 1 12 20Z"/>
+  </symbol>
 </svg>
-<div class="honor-overlay open" id="honor-overlay" role="dialog" aria-modal="true" aria-labelledby="honor-title" aria-describedby="honor-copy">
-  <section class="honor-dialog" id="honor-dialog" tabindex="-1">
-    <div class="honor-mark" aria-hidden="true">AL</div>
-    <div class="honor-kicker">Unknown Cyberia honors</div>
-    <h2 id="honor-title">Alex Lazau</h2>
-    <p class="honor-copy" id="honor-copy">For distinguished service to being mentioned on a statistics page he almost certainly did not request.</p>
-    <p class="honor-aside">Officially responsible for 0% of the tracked hours and 100% of this interruption.</p>
-    <button class="honor-close" id="honor-close" type="button" onclick="closeHonorableMention()" disabled>
-      <svg class="svg-icon" aria-hidden="true"><use href="#icon-clock"></use></svg>
-      <span id="honor-close-text">Close in 5s</span>
-    </button>
-  </section>
-</div>
-
-<aside class="honor-mini" id="honor-mini" aria-label="Permanent honorable mention" hidden>
-  <div class="honor-mini-mark" aria-hidden="true">AL</div>
-  <div>
-    <strong>Alex Lazau</strong>
-    <span>Still honored. Still occupying screen space.</span>
-  </div>
-</aside>
+<img class="alex-sticker alex-sticker-left" src="/alex-lazau.png" alt="" aria-hidden="true" />
+<img class="alex-sticker alex-sticker-right" src="/alex-lazau.png" alt="" aria-hidden="true" />
 
 <div class="page" id="dashboard-page">
 
@@ -1089,7 +1038,7 @@
       <div class="logo-icon"><img src="/favicon.svg" alt="" /></div>
       <div class="logo-text">
         <div class="logo-kicker">TeamSpeak activity tracker</div>
-        <h1>Unknown Cyberia</h1>
+        <h1 id="site-title">Unknown Cyberia</h1>
         <p>Live presence, sessions, and channel statistics</p>
       </div>
     </div>
@@ -1099,7 +1048,7 @@
         <span id="bot-status-text">Connecting…</span>
       </div>
       <button id="admin-btn" class="header-btn" onclick="openAdminModal()" hidden><svg class="svg-icon" aria-hidden="true"><use href="#icon-shield"></use></svg> Admin</button>
-      <button id="refresh-btn" onclick="refreshAll()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg> Refresh</button>
+      <button id="refresh-btn" onclick="handleRefreshClick()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg> Refresh</button>
     </div>
   </header>
 
@@ -1226,6 +1175,7 @@
       <div class="section-title">Recent Sessions</div>
       <div id="modal-sessions" style="font-size:0.8rem;color:var(--text-2);line-height:1.8"></div>
       <div class="modal-actions" id="user-admin-actions" hidden>
+        <button class="action-btn danger" id="blacklist-user-btn" onclick="toggleCurrentUserBlacklist()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-ban"></use></svg> Blacklist user</button>
         <button class="action-btn danger" id="reset-user-btn" onclick="resetCurrentUser()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-trash"></use></svg> Reset this user</button>
       </div>
     </div>
@@ -1289,9 +1239,13 @@
   }
 
   function statusBadge(row) {
-    if (!row.is_online) return `<span class="badge badge-offline">Offline</span>`;
-    if (row.is_afk)     return `<span class="badge badge-afk">${svgIcon('clock')} AFK</span>`;
-    return `<span class="badge badge-online">${svgIcon('status')} Online</span>`;
+    let presence = `<span class="badge badge-offline">Offline</span>`;
+    if (row.is_afk) presence = `<span class="badge badge-afk">${svgIcon('clock')} AFK</span>`;
+    else if (row.is_online) presence = `<span class="badge badge-online">${svgIcon('status')} Online</span>`;
+    const blacklist = row.is_blacklisted
+      ? `<span class="badge badge-blacklisted">${svgIcon('ban')} Blacklisted</span>`
+      : '';
+    return `<span class="status-badges">${presence}${blacklist}</span>`;
   }
 
   // ── State ─────────────────────────────────────────────────────────────────
@@ -1300,77 +1254,56 @@
   let hoursPerTick = 1 / 60;
   let currentModalUid = null;
   let currentModalName = '';
+  let currentModalBlacklisted = false;
+  let lastRefreshAt = null;
   let pendingAdminChallenge = null;
-  const HONOR_CLOSE_DELAY_SECONDS = 5;
-  const HONOR_REAPPEAR_MS = 5 * 60_000;
-  let honorCountdownTimer = null;
-  let honorReappearTimer = null;
-  let honorSecondsRemaining = HONOR_CLOSE_DELAY_SECONDS;
-  let honorIsOpen = false;
+  const ALEX_TRIGGER_CLICKS = 5;
+  const ALEX_REPEAT_MS = 10_000;
+  const alexAudio = new Audio('/alex-lazau-spotted.mp3');
+  alexAudio.preload = 'auto';
+  let refreshClickCount = 0;
+  let alexModeInterval = null;
   let adminState = {
     authorized: false,
     mode: null,
     username: null,
     apiBase: '',
     discord: { configured: false },
+    blacklisted_users: [],
   };
   const timeKeys = { total: 'total_time', daily: 'daily_time', weekly: 'weekly_time', monthly: 'monthly_time' };
 
-  function updateHonorButton() {
-    const button = document.getElementById('honor-close');
-    const text = document.getElementById('honor-close-text');
-    const icon = button.querySelector('use');
-    const waiting = honorSecondsRemaining > 0;
-
-    button.disabled = waiting;
-    text.textContent = waiting
-      ? `Close in ${honorSecondsRemaining}s`
-      : 'Return to dashboard';
-    icon.setAttribute('href', waiting ? '#icon-clock' : '#icon-close');
+  function randomAlexVolume() {
+    const roll = Math.random();
+    if (roll < 0.2) return 1;
+    if (roll < 0.45) return 0.16;
+    return 0.35 + Math.random() * 0.5;
   }
 
-  function showHonorableMention() {
-    if (honorIsOpen) return;
-
-    const overlay = document.getElementById('honor-overlay');
-    const mini = document.getElementById('honor-mini');
-    const page = document.getElementById('dashboard-page');
-    honorIsOpen = true;
-    honorSecondsRemaining = HONOR_CLOSE_DELAY_SECONDS;
-    clearTimeout(honorReappearTimer);
-    clearInterval(honorCountdownTimer);
-    overlay.classList.add('open');
-    overlay.removeAttribute('aria-hidden');
-    mini.hidden = true;
-    document.body.classList.add('honor-locked');
-    page.inert = true;
-    document.getElementById('modal-overlay').inert = true;
-    document.getElementById('admin-modal-overlay').inert = true;
-    updateHonorButton();
-    document.getElementById('honor-dialog').focus({ preventScroll: true });
-
-    honorCountdownTimer = setInterval(() => {
-      honorSecondsRemaining -= 1;
-      updateHonorButton();
-      if (honorSecondsRemaining <= 0) clearInterval(honorCountdownTimer);
-    }, 1000);
+  function playAlexSpotted() {
+    alexAudio.pause();
+    alexAudio.currentTime = 0;
+    alexAudio.volume = randomAlexVolume();
+    return alexAudio.play().catch(() => {});
   }
 
-  function closeHonorableMention() {
-    if (!honorIsOpen || honorSecondsRemaining > 0) return;
+  function activateAlexMode() {
+    if (document.body.classList.contains('alex-mode')) return;
+    document.body.classList.add('alex-mode');
+    document.getElementById('site-title').textContent = 'Alex Lazau';
+    document.title = 'Alex Lazau - TeamSpeak Activity Tracker';
+    void playAlexSpotted();
+    clearInterval(alexModeInterval);
+    alexModeInterval = setInterval(() => { void playAlexSpotted(); }, ALEX_REPEAT_MS);
+    showToast('ALEX LAZAU SPOTTED');
+  }
 
-    const overlay = document.getElementById('honor-overlay');
-    const mini = document.getElementById('honor-mini');
-    honorIsOpen = false;
-    clearInterval(honorCountdownTimer);
-    overlay.classList.remove('open');
-    overlay.setAttribute('aria-hidden', 'true');
-    mini.hidden = false;
-    document.body.classList.remove('honor-locked');
-    document.getElementById('dashboard-page').inert = false;
-    document.getElementById('modal-overlay').inert = false;
-    document.getElementById('admin-modal-overlay').inert = false;
-    honorReappearTimer = setTimeout(showHonorableMention, HONOR_REAPPEAR_MS);
+  function handleRefreshClick() {
+    if (!document.body.classList.contains('alex-mode')) {
+      refreshClickCount += 1;
+      if (refreshClickCount >= ALEX_TRIGGER_CLICKS) activateAlexMode();
+    }
+    return refreshAll();
   }
 
   function setPublicSiteLink(rawUrl) {
@@ -1480,6 +1413,17 @@
 
     const discord = adminState.discord || {};
     const sentText = discord.last_sent_at ? ` Last sent ${fmtDate(discord.last_sent_at)}.` : '';
+    const blacklistedUsers = adminState.blacklisted_users || [];
+    const blacklistRows = blacklistedUsers.length
+      ? blacklistedUsers.map(user => `
+          <div class="blacklist-row">
+            <div>
+              <div class="blacklist-name">${esc(user.username)}</div>
+              <div class="blacklist-meta">${user.is_afk ? 'AFK' : user.is_online ? 'Online' : `Last seen ${fmtDate(user.last_seen)}`}</div>
+            </div>
+            <button class="action-btn" type="button" onclick="removeBlacklist('${encodeURIComponent(user.uid)}')" aria-label="Remove ${esc(user.username)} from blacklist">${svgIcon('ban')} Unblacklist</button>
+          </div>`).join('')
+      : `<div class="blacklist-row"><div class="blacklist-meta">No blacklisted users</div></div>`;
     body.innerHTML = `
       <div class="admin-status-line">${svgIcon('shield')} ${esc(adminState.username || 'Administrator')} verified via ${adminState.mode === 'local' ? 'this laptop' : 'TeamSpeak UID'}</div>
       <div class="admin-section">
@@ -1488,6 +1432,11 @@
         <div class="modal-actions">
           <button class="action-btn" id="send-discord-btn" onclick="sendDiscordNow()" ${discord.configured ? '' : 'disabled'}>${svgIcon('send')} Send now</button>
         </div>
+      </div>
+      <div class="admin-section">
+        <h3>User blacklist</h3>
+        <p>Blacklisted users keep their live presence and existing leaderboard history, but all new tracking is disabled and they rank below everyone else.</p>
+        <div class="blacklist-list">${blacklistRows}</div>
       </div>
       <div class="admin-section">
         <h3>Tracked data</h3>
@@ -1562,7 +1511,7 @@
         body: JSON.stringify({ confirm: 'RESET' }),
       });
       closeAdminModal();
-      await refreshAll();
+      await Promise.all([refreshAdminState(), refreshAll()]);
       showToast('All tracked data was reset.');
     } catch (error) {
       showToast(error.message, true);
@@ -1578,7 +1527,14 @@
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
       });
-      adminState = { ...adminState, authorized: false, mode: null, username: null, discord: { configured: false } };
+      adminState = {
+        ...adminState,
+        authorized: false,
+        mode: null,
+        username: null,
+        discord: { configured: false },
+        blacklisted_users: [],
+      };
       renderAdminModal();
       document.getElementById('admin-btn').innerHTML = `${svgIcon('shield')} Admin access`;
       updateUserAdminActions();
@@ -1590,6 +1546,63 @@
   function updateUserAdminActions() {
     const actions = document.getElementById('user-admin-actions');
     if (actions) actions.hidden = !adminState.authorized || !currentModalUid;
+    const blacklistButton = document.getElementById('blacklist-user-btn');
+    if (blacklistButton) {
+      blacklistButton.classList.toggle('danger', !currentModalBlacklisted);
+      blacklistButton.innerHTML = `${svgIcon('ban')} ${currentModalBlacklisted ? 'Remove from blacklist' : 'Blacklist user'}`;
+    }
+  }
+
+  async function changeUserBlacklist(uid, blacklisted, username) {
+    if (!uid || !adminState.authorized) return;
+    if (
+      blacklisted &&
+      !window.confirm(`Blacklist ${username}? Their presence stays visible, but new tracking stops.`)
+    ) return;
+
+    const button = uid === currentModalUid
+      ? document.getElementById('blacklist-user-btn')
+      : null;
+    if (button) button.disabled = true;
+    try {
+      await adminFetch(`/api/admin/users/${encodeURIComponent(uid)}/blacklist`, {
+        method: 'POST',
+        body: JSON.stringify({ uid, blacklisted }),
+      });
+      if (uid === currentModalUid) currentModalBlacklisted = blacklisted;
+      await Promise.all([refreshAdminState(), refreshAll()]);
+
+      if (uid === currentModalUid) {
+        const row = allUsers.find(user => user.uid === uid) || {
+          is_online: false,
+          is_afk: false,
+          is_blacklisted: blacklisted,
+        };
+        document.getElementById('modal-badge').innerHTML = statusBadge(row);
+      }
+      if (document.getElementById('admin-modal-overlay').classList.contains('open')) {
+        renderAdminModal();
+      }
+      updateUserAdminActions();
+      showToast(`${username} was ${blacklisted ? 'blacklisted' : 'removed from the blacklist'}.`);
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  function toggleCurrentUserBlacklist() {
+    return changeUserBlacklist(
+      currentModalUid,
+      !currentModalBlacklisted,
+      currentModalName,
+    );
+  }
+
+  function removeBlacklist(encodedUid) {
+    const uid = decodeURIComponent(encodedUid);
+    const user = (adminState.blacklisted_users || []).find(item => item.uid === uid);
+    return changeUserBlacklist(uid, false, user ? user.username : 'User');
   }
 
   async function resetCurrentUser() {
@@ -1605,7 +1618,7 @@
         body: JSON.stringify({ uid }),
       });
       closeModal();
-      await refreshAll();
+      await Promise.all([refreshAdminState(), refreshAll()]);
       showToast(`${username} was reset.`);
     } catch (error) {
       showToast(error.message, true);
@@ -1652,8 +1665,11 @@
   function renderLeaderboard() {
     const key = timeKeys[currentTab] || 'total_time';
     const sorted = [...allUsers]
-      .filter(u => (u[key] || 0) > 0 || u.is_online)
-      .sort((a, b) => (b[key] || 0) - (a[key] || 0))
+      .filter(u => (u[key] || 0) > 0 || u.is_online || u.is_blacklisted)
+      .sort((a, b) =>
+        Number(Boolean(a.is_blacklisted)) - Number(Boolean(b.is_blacklisted)) ||
+        (b[key] || 0) - (a[key] || 0),
+      )
       .slice(0, 20);
 
     const tbody = document.getElementById('leaderboard-body');
@@ -1663,18 +1679,18 @@
     }
 
     tbody.innerHTML = sorted.map((u, i) => {
-      const rankClass = i < 3 ? ` rank-${i+1}` : '';
+      const rankClass = i < 3 && !u.is_blacklisted ? ` rank-${i+1}` : '';
       const initials = u.username.slice(0,2).toUpperCase();
       const timeVal = fmtHours(u[key] || 0);
       return `
-        <tr class="user-row" onclick="openModal('${u.uid}')">
-          <td class="rank-cell${rankClass}">${rankLabel(i)}</td>
+        <tr class="user-row${u.is_blacklisted ? ' blacklisted' : ''}" onclick="openModal('${u.uid}')">
+          <td class="rank-cell${rankClass}">${u.is_blacklisted ? `#${i+1}` : rankLabel(i)}</td>
           <td>
             <div class="user-cell">
               <div class="avatar">${esc(initials)}</div>
               <div>
                 <div class="user-name">${esc(u.username)}</div>
-                <div class="user-meta">Sessions: ${u.session_count || 0}</div>
+                <div class="user-meta">Sessions: ${u.session_count || 0}${u.is_blacklisted ? ' | Tracking disabled' : ''}</div>
               </div>
             </div>
           </td>
@@ -1699,9 +1715,12 @@
         <div class="online-dot${u.is_afk ? ' afk' : ''}"></div>
         <div class="online-info">
           <div class="online-name">${esc(u.username)}${u.is_afk ? ' [AFK]' : ''}</div>
-          <div class="online-detail">${esc(u.channel || '')}${u.is_afk ? ' | Tracking paused' : ''}</div>
+          <div class="online-detail">${esc(u.channel || '')}${u.is_blacklisted ? ' | Tracking disabled' : u.is_afk ? ' | Tracking paused' : ''}</div>
         </div>
-        <div class="online-time${u.is_afk ? ' afk' : ''}">${u.is_afk ? 'AFK' : fmtHours(u.sessionHours)}</div>
+        <div class="online-state">
+          ${u.is_blacklisted ? `<span class="badge badge-blacklisted">${svgIcon('ban')} Blacklisted</span>` : ''}
+          <div class="online-time${u.is_afk ? ' afk' : ''}">${u.is_afk ? 'AFK' : u.is_blacklisted ? 'Online' : fmtHours(u.sessionHours)}</div>
+        </div>
       </li>`).join('');
   }
 
@@ -1764,18 +1783,20 @@
     overlay.classList.add('open');
     currentModalUid = uid;
     currentModalName = '';
+    currentModalBlacklisted = false;
     updateUserAdminActions();
 
     try {
       const data = await fetchJson(`/api/user/${encodeURIComponent(uid)}`);
       const initials = data.username.slice(0,2).toUpperCase();
       currentModalName = data.username;
+      currentModalBlacklisted = Boolean(data.is_blacklisted);
       document.getElementById('modal-avatar').textContent = initials;
       document.getElementById('modal-name').textContent = data.username;
       document.getElementById('modal-badge').innerHTML = statusBadge(data);
 
       // Stats grid
-      document.getElementById('modal-grid').innerHTML = [
+      const modalStats = [
         { label: 'Total Time',    val: fmtHours(data.total_time) },
         { label: 'Rank',          val: `#${data.rank}` },
         { label: 'Today',         val: fmtHours(data.daily_time) },
@@ -1784,7 +1805,11 @@
         { label: 'AFK Time',      val: fmtHours(data.afk_time) },
         { label: 'Sessions',      val: data.session_count },
         { label: 'First Seen',    val: fmtDate(data.first_seen) },
-      ].map(s => `
+      ];
+      if (data.is_blacklisted) {
+        modalStats.unshift({ label: 'Tracking', val: 'Blacklisted' });
+      }
+      document.getElementById('modal-grid').innerHTML = modalStats.map(s => `
         <div class="modal-stat">
           <div class="ms-label">${s.label}</div>
           <div class="ms-val">${s.val}</div>
@@ -1798,7 +1823,7 @@
         const t = tickMap[i] || 0;
         const intensity = Math.round((t / maxTick) * 100);
         const bg = t > 0
-          ? `linear-gradient(135deg, rgba(169,134,194,${0.15 + intensity/100*0.85}), rgba(223,114,170,${0.1 + intensity/100*0.5}))`
+          ? `linear-gradient(135deg, rgba(141,45,255,${0.15 + intensity/100*0.85}), rgba(223,25,255,${0.1 + intensity/100*0.5}))`
           : 'var(--border)';
         return `<div class="heatmap-cell" data-tip="${i}:00 – ${i+1 < 10 ? '0':''}${i+1}:00 (${fmtHours(t * hoursPerTick)})" style="background:${bg}"></div>`;
       }).join('');
@@ -1838,13 +1863,13 @@
     document.getElementById('modal-overlay').classList.remove('open');
     currentModalUid = null;
     currentModalName = '';
+    currentModalBlacklisted = false;
     updateUserAdminActions();
   }
 
   // Close on Escape
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      if (honorIsOpen) return;
       closeModal();
       closeAdminModal();
     }
@@ -1856,21 +1881,38 @@
   }
 
   // ── Refresh ───────────────────────────────────────────────────────────────
-  function refreshAll() {
+  function updateRefreshInfo() {
+    const now = new Date();
+    const liveTime = now.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const age = lastRefreshAt === null
+      ? 'waiting for data'
+      : `${Math.max(0, Math.floor((now.getTime() - lastRefreshAt) / 1000))}s ago`;
+    document.getElementById('last-refresh-text').textContent =
+      `Updated ${age} | Local time ${liveTime} | Refreshes every 30s`;
+  }
+
+  async function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.innerHTML = `${svgIcon('refresh')} Loading...`;
-    return fetchAll().finally(() => {
+    try {
+      await fetchAll();
+      lastRefreshAt = Date.now();
+    } finally {
       btn.innerHTML = `${svgIcon('refresh')} Refresh`;
-      document.getElementById('last-refresh-text').textContent =
-        `Last refresh: ${new Date().toLocaleTimeString()} — Auto-refreshes every 30s`;
-    });
+      updateRefreshInfo();
+    }
   }
 
   // Auto-refresh every 30 seconds
   setInterval(refreshAll, 30_000);
+  setInterval(updateRefreshInfo, 1_000);
 
   // Initial load
-  showHonorableMention();
+  updateRefreshInfo();
   initializeAdminAccess();
   refreshAll();
 </script>

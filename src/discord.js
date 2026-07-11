@@ -90,11 +90,13 @@ async function readStatsSnapshot(db) {
        FROM users`,
     ),
     db.allAsync(
-      `SELECT username, total_time, is_online, is_afk
-       FROM users
-       WHERE total_time > 0 OR is_online = 1
-       ORDER BY total_time DESC
-       LIMIT 10`,
+      `SELECT u.username, u.total_time, u.is_online, u.is_afk,
+              CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+         FROM users u
+         LEFT JOIN user_blacklist b ON b.uid = u.uid
+        WHERE u.total_time > 0 OR u.is_online = 1 OR b.uid IS NOT NULL
+        ORDER BY is_blacklisted ASC, u.total_time DESC
+        LIMIT 10`,
     ),
     db.allAsync(
       `SELECT channel_name, SUM(total_time) AS total_time
@@ -119,11 +121,11 @@ function buildDiscordPayload(snapshot, options = {}) {
     ? snapshot.leaderboard
         .map(
           (user, index) => {
-            const status = user.is_afk
-              ? " (AFK)"
-              : user.is_online
-                ? " (online)"
-                : "";
+            const states = [];
+            if (user.is_afk) states.push("AFK");
+            else if (user.is_online) states.push("online");
+            if (user.is_blacklisted) states.push("blacklisted");
+            const status = states.length ? ` (${states.join(", ")})` : "";
             return (
               `**${index + 1}.** ${escapeDiscordMarkdown(user.username, 48)} - ` +
               `\`${formatHours(user.total_time)}\`${status}`
