@@ -31,6 +31,10 @@ const {
   resetUserTrackingData,
   resetAllTrackingData,
   setUserBlacklisted,
+  getOttoMultiplier,
+  setOttoMultiplier,
+  setUserTrackedHours,
+  OTTO_UID,
 } = require("./tracker");
 
 // ---------------------------------------------------------------------------
@@ -122,6 +126,7 @@ let maintenanceQueue = Promise.resolve();
 
 const adminAuth = new TeamSpeakAdminAuth({
   adminGroupIds: process.env.TS3_ADMIN_GROUP_IDS || "6",
+  restrictedUsers: { [OTTO_UID]: "otto" },
 });
 const discordReporter = createDiscordReporter({
   db,
@@ -240,12 +245,38 @@ function getRemoteAdminSession(req) {
   return adminAuth.getSession(getCookie(req, ADMIN_COOKIE));
 }
 
+function permissionsForRole(role) {
+  return {
+    manage_users: role === "admin",
+    manage_multiplier: role === "admin" || role === "otto",
+  };
+}
+
 function requireRemoteAdmin(req, res, next) {
   const session = getRemoteAdminSession(req);
   if (!session) {
     return res.status(401).json({ error: "Server Admin verification required" });
   }
+  if (session.role !== "admin") {
+    return res.status(403).json({ error: "Full Server Admin access required" });
+  }
   res.locals.adminActor = `TeamSpeak admin ${session.username} (${session.uid})`;
+  res.locals.adminSession = session;
+  next();
+}
+
+function requireRemoteMultiplierAccess(req, res, next) {
+  const session = getRemoteAdminSession(req);
+  if (!session) {
+    return res.status(401).json({ error: "TeamSpeak identity verification required" });
+  }
+  if (!permissionsForRole(session.role).manage_multiplier) {
+    return res.status(403).json({ error: "Multiplier access required" });
+  }
+  res.locals.adminActor =
+    session.role === "otto"
+      ? `Otto ${session.username} (${session.uid})`
+      : `TeamSpeak admin ${session.username} (${session.uid})`;
   res.locals.adminSession = session;
   next();
 }
@@ -273,19 +304,26 @@ app.get(
   "/api/admin/status",
   asyncRoute(async (req, res) => {
     const session = getRemoteAdminSession(req);
-    const [discord, blacklistedUsers] = session
+    const fullAdmin = session && session.role === "admin";
+    const [discord, blacklistedUsers, ottoMultiplier] = session
       ? await Promise.all([
-          discordReporter.getStatus(),
-          listBlacklistedUsers(),
+          fullAdmin
+            ? discordReporter.getStatus()
+            : { configured: discordReporter.configured },
+          fullAdmin ? listBlacklistedUsers() : [],
+          getOttoMultiplier(),
         ])
-      : [{ configured: discordReporter.configured }, []];
+      : [{ configured: discordReporter.configured }, [], null];
     res.json({
       authorized: Boolean(session),
       mode: session ? "teamspeak" : null,
       username: session ? session.username : null,
+      role: session ? session.role : null,
+      permissions: permissionsForRole(session ? session.role : null),
       ts3_connected: isConnected,
       discord,
       blacklisted_users: blacklistedUsers,
+      otto_multiplier: ottoMultiplier,
     });
   }),
 );
@@ -317,6 +355,8 @@ app.post(
       authorized: true,
       mode: "teamspeak",
       username: result.username,
+      role: result.role,
+      permissions: permissionsForRole(result.role),
       expires_at: result.expiresAt,
     });
   }),
@@ -378,6 +418,48 @@ async function blacklistUserHandler(req, res) {
   res.json({ ok: true, user });
 }
 
+async function editUserHoursHandler(req, res) {
+  const uid = String(req.params.uid || "");
+  if (!uid || req.body.uid !== uid || !req.body.hours) {
+    return res.status(400).json({ error: "User and tracked hours are required." });
+  }
+
+  let user;
+  try {
+    user = await runTrackingMaintenance(() =>
+      setUserTrackedHours(uid, req.body.hours),
+    );
+  } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ error: error.message });
+    }
+    throw error;
+  }
+  if (!user) return res.status(404).json({ error: "User not found." });
+
+  console.log(
+    `[Admin] ${res.locals.adminActor || "Local host"} edited tracked hours for ${user.username} (${uid}).`,
+  );
+  res.json({ ok: true, user });
+}
+
+async function setOttoMultiplierHandler(req, res) {
+  let multiplier;
+  try {
+    multiplier = await setOttoMultiplier(req.body.multiplier);
+  } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ error: error.message });
+    }
+    throw error;
+  }
+
+  console.log(
+    `[Admin] ${res.locals.adminActor || "Local host"} set Otto's multiplier to ${multiplier}x.`,
+  );
+  res.json({ ok: true, multiplier });
+}
+
 async function sendDiscordHandler(_req, res) {
   if (!discordReporter.configured) {
     return res.status(400).json({ error: "Discord webhook is not configured." });
@@ -400,6 +482,18 @@ app.post(
   requireSameOriginJson,
   requireRemoteAdmin,
   asyncRoute(blacklistUserHandler),
+);
+app.patch(
+  "/api/admin/users/:uid/hours",
+  requireSameOriginJson,
+  requireRemoteAdmin,
+  asyncRoute(editUserHoursHandler),
+);
+app.patch(
+  "/api/admin/otto-multiplier",
+  requireSameOriginJson,
+  requireRemoteMultiplierAccess,
+  asyncRoute(setOttoMultiplierHandler),
 );
 app.delete(
   "/api/admin/data",
@@ -609,7 +703,10 @@ localAdminApp.use((req, res, next) => {
   if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PATCH, DELETE, OPTIONS",
+    );
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   }
 
@@ -629,17 +726,21 @@ function requireLocalJson(req, res, next) {
 localAdminApp.get(
   "/api/admin/status",
   asyncRoute(async (_req, res) => {
-    const [discord, blacklistedUsers] = await Promise.all([
+    const [discord, blacklistedUsers, ottoMultiplier] = await Promise.all([
       discordReporter.getStatus(),
       listBlacklistedUsers(),
+      getOttoMultiplier(),
     ]);
     res.json({
       authorized: true,
       mode: "local",
       username: "Local host",
+      role: "admin",
+      permissions: permissionsForRole("admin"),
       ts3_connected: isConnected,
       discord,
       blacklisted_users: blacklistedUsers,
+      otto_multiplier: ottoMultiplier,
     });
   }),
 );
@@ -652,6 +753,16 @@ localAdminApp.post(
   "/api/admin/users/:uid/blacklist",
   requireLocalJson,
   asyncRoute(blacklistUserHandler),
+);
+localAdminApp.patch(
+  "/api/admin/users/:uid/hours",
+  requireLocalJson,
+  asyncRoute(editUserHoursHandler),
+);
+localAdminApp.patch(
+  "/api/admin/otto-multiplier",
+  requireLocalJson,
+  asyncRoute(setOttoMultiplierHandler),
 );
 localAdminApp.delete(
   "/api/admin/data",

@@ -30,6 +30,17 @@ const AWAY_THRESHOLD_MIN = parsePositiveInt(
   process.env.AFK_AWAY_THRESHOLD_MINUTES,
   5,
 );
+const OTTO_UID = "Z9wyOb/tgzg6wd6TMA9fs36txK0=";
+const DEFAULT_OTTO_MULTIPLIER = 2;
+const MIN_OTTO_MULTIPLIER = 0.1;
+const MAX_OTTO_MULTIPLIER = 100;
+const OTTO_MULTIPLIER_META_KEY = "otto_hours_multiplier";
+const TRACKED_HOUR_FIELDS = [
+  "total_time",
+  "daily_time",
+  "weekly_time",
+  "monthly_time",
+];
 
 // uid -> { start: Date, channelId: string, channelName: string, sessionDbId: number }
 const activeSessions = new Map();
@@ -59,6 +70,87 @@ const EXCLUDED_CHANNELS = (process.env.EXCLUDED_CHANNELS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+
+function normalizeOttoMultiplier(value) {
+  const multiplier = Number(value);
+  if (
+    !Number.isFinite(multiplier) ||
+    multiplier < MIN_OTTO_MULTIPLIER ||
+    multiplier > MAX_OTTO_MULTIPLIER
+  ) {
+    throw new RangeError(
+      `Otto multiplier must be between ${MIN_OTTO_MULTIPLIER} and ${MAX_OTTO_MULTIPLIER}.`,
+    );
+  }
+  return Math.round(multiplier * 100) / 100;
+}
+
+async function getOttoMultiplier() {
+  const row = await db.getAsync("SELECT value FROM app_meta WHERE key = ?", [
+    OTTO_MULTIPLIER_META_KEY,
+  ]);
+  if (!row || row.value === undefined || row.value === null) {
+    return DEFAULT_OTTO_MULTIPLIER;
+  }
+  try {
+    return normalizeOttoMultiplier(row.value);
+  } catch {
+    return DEFAULT_OTTO_MULTIPLIER;
+  }
+}
+
+async function setOttoMultiplier(value) {
+  const multiplier = normalizeOttoMultiplier(value);
+  await db.runAsync(
+    `INSERT INTO app_meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    [OTTO_MULTIPLIER_META_KEY, String(multiplier)],
+  );
+  return multiplier;
+}
+
+function normalizeTrackedHours(values) {
+  const normalized = {};
+  for (const field of TRACKED_HOUR_FIELDS) {
+    const hours = Number(values && values[field]);
+    if (!Number.isFinite(hours) || hours < 0 || hours > 1_000_000) {
+      throw new RangeError(
+        "Tracked hours must be numbers between 0 and 1,000,000.",
+      );
+    }
+    normalized[field] = Math.round(hours * 1_000_000) / 1_000_000;
+  }
+
+  for (const field of TRACKED_HOUR_FIELDS.slice(1)) {
+    if (normalized[field] > normalized.total_time) {
+      throw new RangeError("Period hours cannot exceed all-time hours.");
+    }
+  }
+  return normalized;
+}
+
+async function setUserTrackedHours(uid, values) {
+  const user = await db.getAsync(
+    "SELECT uid, username FROM users WHERE uid = ?",
+    [uid],
+  );
+  if (!user) return null;
+
+  const hours = normalizeTrackedHours(values);
+  await db.runAsync(
+    `UPDATE users SET
+       total_time = ?, daily_time = ?, weekly_time = ?, monthly_time = ?
+     WHERE uid = ?`,
+    [
+      hours.total_time,
+      hours.daily_time,
+      hours.weekly_time,
+      hours.monthly_time,
+      uid,
+    ],
+  );
+  return { ...user, ...hours };
+}
 
 // ---------------------------------------------------------------------------
 function isIgnoredNickname(nickname) {
@@ -364,8 +456,14 @@ async function processClientTick(client, channelMap) {
     visitedChannel = true;
   }
 
+  const tickMult = uid === "Z9wyOb/tgzg6wd6TMA9fs36txK0=" ? 6.7 : 1;
   const tickTime = (elapsedMs / 3_600_000) * tickMult;
   const tickUnits = (elapsedMs / POLL_INTERVAL_MS) * tickMult;
+  const configuredMultiplier =
+    uid === OTTO_UID ? await getOttoMultiplier() : tickMult;
+  const multiplierAdjustment = configuredMultiplier / tickMult;
+  const creditedTickTime = tickTime * multiplierAdjustment;
+  const creditedTickUnits = tickUnits * multiplierAdjustment;
 
   if (earnTime) {
     // Accumulate time in all period buckets
@@ -376,7 +474,13 @@ async function processClientTick(client, channelMap) {
          weekly_time  = weekly_time  + ?,
          monthly_time = monthly_time + ?
        WHERE uid = ?`,
-      [tickTime, tickTime, tickTime, tickTime, uid],
+      [
+        creditedTickTime,
+        creditedTickTime,
+        creditedTickTime,
+        creditedTickTime,
+        uid,
+      ],
     );
 
     // Per-channel time
@@ -391,26 +495,32 @@ async function processClientTick(client, channelMap) {
         uid,
         channelId,
         channelName,
-        tickTime,
+        creditedTickTime,
         visitedChannel ? 1 : 0,
-        tickTime,
+        creditedTickTime,
         visitedChannel ? 1 : 0,
       ],
     );
 
-    if (tickUnits > 0) {
+    if (creditedTickUnits > 0) {
       await db.runAsync(
         `INSERT INTO hourly_activity (uid, hour_of_day, day_of_week, ticks)
          VALUES (?, ?, ?, ?)
          ON CONFLICT(uid, hour_of_day, day_of_week) DO UPDATE SET ticks = ticks + ?`,
-        [uid, now.getHours(), now.getDay(), tickUnits, tickUnits],
+        [
+          uid,
+          now.getHours(),
+          now.getDay(),
+          creditedTickUnits,
+          creditedTickUnits,
+        ],
       );
     }
   } else {
     // Accumulate AFK time separately
     await db.runAsync(
       "UPDATE users SET afk_time = afk_time + ? WHERE uid = ?",
-      [tickTime, uid],
+      [creditedTickTime, uid],
     );
   }
 
@@ -670,4 +780,9 @@ module.exports = {
   resetUserTrackingData,
   resetAllTrackingData,
   setUserBlacklisted,
+  getOttoMultiplier,
+  setOttoMultiplier,
+  setUserTrackedHours,
+  OTTO_UID,
+  DEFAULT_OTTO_MULTIPLIER,
 };

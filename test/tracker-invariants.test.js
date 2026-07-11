@@ -21,6 +21,15 @@ test("preserves the protected UID multiplier in both active calculations", () =>
     trackerSource,
     /const tickUnits = \(elapsedMs \/ POLL_INTERVAL_MS\) \* tickMult;/,
   );
+  assert.match(trackerSource, /const DEFAULT_OTTO_MULTIPLIER = 2;/);
+  assert.match(
+    trackerSource,
+    /const creditedTickTime = tickTime \* multiplierAdjustment;/,
+  );
+  assert.match(
+    trackerSource,
+    /const creditedTickUnits = tickUnits \* multiplierAdjustment;/,
+  );
 });
 
 test("keeps required ignored names and purges them during runtime", () => {

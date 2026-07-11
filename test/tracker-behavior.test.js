@@ -8,6 +8,10 @@ let scenario = "afk";
 
 const fakeDb = {
   async getAsync(sql) {
+    if (sql.includes("SELECT value FROM app_meta")) {
+      return scenario === "otto" ? { value: "3" } : null;
+    }
+
     if (scenario === "ignored") {
       if (sql.includes("SELECT uid, username FROM users")) {
         return { uid: "music-bot-uid", username: "UC Music Bot" };
@@ -15,7 +19,22 @@ const fakeDb = {
       return null;
     }
 
+    if (
+      scenario === "edit_hours" &&
+      sql.includes("SELECT uid, username FROM users")
+    ) {
+      return { uid: "edited-user-uid", username: "Edited User" };
+    }
+
     if (sql.includes("SELECT u.username, u.last_update, u.is_online")) {
+      if (scenario === "otto") {
+        return {
+          username: "SpiceHater67",
+          last_update: new Date(Date.now() - 60_000).toISOString(),
+          is_online: 1,
+          is_blacklisted: 0,
+        };
+      }
       if (scenario === "blacklisted") {
         return {
           username: "Blocked User",
@@ -54,7 +73,13 @@ require.cache[databasePath] = {
   exports: fakeDb,
 };
 delete require.cache[trackerPath];
-const { getActiveSessions, processClientTick } = require(trackerPath);
+const {
+  getActiveSessions,
+  getOttoMultiplier,
+  processClientTick,
+  setOttoMultiplier,
+  setUserTrackedHours,
+} = require(trackerPath);
 
 test("an away client over five minutes gains only AFK time", async () => {
   const tracked = await processClientTick(
@@ -151,4 +176,73 @@ test("blacklisted clients keep presence without gaining tracked data", async () 
   const activeSession = getActiveSessions().get("blacklisted-user-uid");
   assert.equal(activeSession.blacklisted, true);
   assert.equal(activeSession.sessionDbId, null);
+});
+
+test("Otto defaults to 2x and a configured 3x credits time and heatmap units", async () => {
+  scenario = "default_multiplier";
+  assert.equal(await getOttoMultiplier(), 2);
+
+  scenario = "otto";
+  const writeStart = writes.length;
+  await processClientTick(
+    {
+      type: 0,
+      uniqueIdentifier: "Z9wyOb/tgzg6wd6TMA9fs36txK0=",
+      nickname: "SpiceHater67",
+      channelId: "7",
+      away: 0,
+    },
+    { 7: "General" },
+  );
+  const ottoWrites = writes.slice(writeStart);
+  const timeWrite = ottoWrites.find(({ sql }) =>
+    sql.includes("total_time   = total_time   + ?"),
+  );
+  const heatmapWrite = ottoWrites.find(({ sql }) =>
+    sql.includes("INSERT INTO hourly_activity"),
+  );
+
+  assert.ok(timeWrite);
+  assert.ok(heatmapWrite);
+  assert.ok(timeWrite.params[0] > 0.049 && timeWrite.params[0] < 0.051);
+  assert.ok(heatmapWrite.params[3] > 2.99 && heatmapWrite.params[3] < 3.01);
+});
+
+test("persists only bounded Otto multipliers", async () => {
+  scenario = "default_multiplier";
+  const writeStart = writes.length;
+  assert.equal(await setOttoMultiplier(2.5), 2.5);
+  const multiplierWrite = writes.slice(writeStart).find(({ sql }) =>
+    sql.includes("INSERT INTO app_meta"),
+  );
+  assert.deepEqual(multiplierWrite.params, ["otto_hours_multiplier", "2.5"]);
+  await assert.rejects(() => setOttoMultiplier(0), /between 0.1 and 100/);
+  await assert.rejects(() => setOttoMultiplier(101), /between 0.1 and 100/);
+});
+
+test("validates and updates all editable leaderboard hour counters", async () => {
+  scenario = "edit_hours";
+  const writeStart = writes.length;
+  const result = await setUserTrackedHours("edited-user-uid", {
+    total_time: 12.5,
+    daily_time: 1.25,
+    weekly_time: 4,
+    monthly_time: 8,
+  });
+  const hourWrite = writes.slice(writeStart).find(({ sql }) =>
+    sql.includes("UPDATE users SET") && sql.includes("total_time = ?"),
+  );
+
+  assert.equal(result.total_time, 12.5);
+  assert.deepEqual(hourWrite.params, [12.5, 1.25, 4, 8, "edited-user-uid"]);
+  await assert.rejects(
+    () =>
+      setUserTrackedHours("edited-user-uid", {
+        total_time: 1,
+        daily_time: 2,
+        weekly_time: 0,
+        monthly_time: 0,
+      }),
+    /cannot exceed all-time/,
+  );
 });

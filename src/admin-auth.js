@@ -12,6 +12,15 @@ function normalizeGroupIds(value) {
     .filter(Boolean);
 }
 
+function normalizeRestrictedUsers(value) {
+  if (!value || typeof value !== "object") return new Map();
+  return new Map(
+    Object.entries(value)
+      .map(([uid, role]) => [String(uid).trim(), String(role).trim()])
+      .filter(([uid, role]) => uid && role),
+  );
+}
+
 function generateCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = crypto.randomBytes(8);
@@ -23,6 +32,7 @@ function generateCode() {
 class TeamSpeakAdminAuth {
   constructor(options = {}) {
     this.adminGroupIds = new Set(normalizeGroupIds(options.adminGroupIds));
+    this.restrictedUsers = normalizeRestrictedUsers(options.restrictedUsers);
     this.challengeTtlMs = options.challengeTtlMs || CHALLENGE_TTL_MS;
     this.sessionTtlMs = options.sessionTtlMs || SESSION_TTL_MS;
     this.clients = new Map();
@@ -52,6 +62,12 @@ class TeamSpeakAdminAuth {
 
   isAdminClient(client) {
     return client.groupIds.some((id) => this.adminGroupIds.has(id));
+  }
+
+  getClientRole(client) {
+    const restrictedRole = this.restrictedUsers.get(client.uid);
+    if (restrictedRole) return restrictedRole;
+    return this.isAdminClient(client) ? "admin" : null;
   }
 
   createChallenge() {
@@ -86,30 +102,34 @@ class TeamSpeakAdminAuth {
       };
     }
 
-    const adminClient = matchingClients.find((client) =>
-      this.isAdminClient(client),
+    const authorizedClient = matchingClients.find((client) =>
+      this.getClientRole(client),
     );
-    if (!adminClient) {
+    if (!authorizedClient) {
       return {
         ok: false,
-        reason: "That TeamSpeak identity is not in an allowed Server Admin group.",
+        reason:
+          "That TeamSpeak identity is not in an allowed Server Admin group and has no restricted access role.",
       };
     }
 
     this.challenges.delete(String(id));
     const token = crypto.randomBytes(32).toString("base64url");
     const expiresAt = Date.now() + this.sessionTtlMs;
+    const role = this.getClientRole(authorizedClient);
     this.sessions.set(token, {
-      uid: adminClient.uid,
-      username: adminClient.nickname,
+      uid: authorizedClient.uid,
+      username: authorizedClient.nickname,
+      role,
       expiresAt,
     });
 
     return {
       ok: true,
       token,
-      uid: adminClient.uid,
-      username: adminClient.nickname,
+      uid: authorizedClient.uid,
+      username: authorizedClient.nickname,
+      role,
       expiresAt: new Date(expiresAt).toISOString(),
     };
   }
@@ -120,12 +140,14 @@ class TeamSpeakAdminAuth {
     if (!session) return null;
 
     const client = this.clients.get(session.uid);
-    if (!client || !this.isAdminClient(client)) {
+    const role = client ? this.getClientRole(client) : null;
+    if (!client || !role) {
       this.sessions.delete(String(token));
       return null;
     }
 
     session.username = client.nickname;
+    session.role = role;
     return { ...session };
   }
 

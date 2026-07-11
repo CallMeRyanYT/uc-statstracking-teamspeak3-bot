@@ -14,7 +14,8 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 | AFK handling | Pauses active time after the configured away threshold |
 | Period resets | Daily, weekly, and monthly counters reset automatically |
 | Discord reports | Posts totals, top users, top channels, and the public website on a schedule |
-| Admin controls | Blacklist users, reset one user, or clear all tracked data from the dashboard |
+| Admin controls | Edit leaderboard hours, blacklist users, reset one user, or clear all tracked data |
+| Otto multiplier | Credits one permanent UID at a persistent configurable rate, defaulting to 2.0x |
 | Stable identities | Uses the permanent TeamSpeak client UID, not the temporary connection ID |
 | Public website | Uses the configured domain or subdomain in dashboard and Discord links |
 
@@ -139,11 +140,15 @@ TeamSpeak exposes both a temporary connection ID and a permanent client unique i
 Dashboard editing works in two ways:
 
 - On `http://localhost:3000`, the laptop gets automatic access through the loopback-only admin port.
-- On the public URL, a Server Admin selects **Admin access**, receives a five-minute code, briefly adds it to their TeamSpeak nickname, and clicks **Verify now**. The tracker checks the online UID and its server groups before granting a one-hour session. Access ends if that UID goes offline or loses the configured admin group.
+- On the public URL, a Server Admin selects **Admin access**, receives a five-minute code, briefly adds it to their TeamSpeak nickname, and clicks **Verify now**. The tracker checks the online UID and its server groups before granting a one-hour session. Full access ends if that UID goes offline or loses the configured admin group.
 
 Set `TS3_ADMIN_GROUP_IDS` to the comma-separated IDs that should have access. `6` is a common default for Server Admin, but confirm the ID on your server.
 
 Open a leaderboard profile and select **Blacklist user** to pause all future tracking for that permanent UID. A blacklisted user remains visible with their current Online, AFK, or Offline state, keeps their existing history, receives a **Blacklisted** badge, and is placed below tracked users. Removing the user from the blacklist starts a fresh tracked session if they are currently online. Resetting that user deletes both their history and blacklist entry.
+
+Full admins can also edit the all-time, daily, weekly, and monthly leaderboard counters from a user's profile. Values must be non-negative, period values cannot exceed all-time hours, and session/channel history is intentionally not rewritten.
+
+The permanent UID `Z9wyOb/tgzg6wd6TMA9fs36txK0=` has the restricted `otto` role. It can pass the server-group check after proving the UID with the same temporary nickname code, but it cannot edit users, blacklist or reset data, or send Discord reports. Its only write permission is the Otto multiplier. The restricted manager button appears only after Alex mode is activated; full admins can always inspect and change the multiplier. The default is `2.0x`, the accepted range is `0.1x` to `100x`, and changes persist in SQLite. Online session duration remains real elapsed time while leaderboard, channel, AFK, and heatmap credits use the multiplier for new ticks only.
 
 ## Config Reference
 

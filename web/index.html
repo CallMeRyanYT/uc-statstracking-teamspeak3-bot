@@ -582,6 +582,72 @@
     .admin-section h3 { font-size: 0.92rem; margin-bottom: 6px; }
     .admin-section p { color: var(--text-2); font-size: 0.8rem; line-height: 1.55; }
 
+    .admin-field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .admin-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .admin-field > span {
+      color: var(--text-3);
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .input-with-unit {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      background: #050008;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .input-with-unit:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 12px rgba(223, 25, 255, 0.14);
+    }
+
+    .input-with-unit > span {
+      color: var(--accent);
+      flex-shrink: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      padding: 0 10px;
+    }
+
+    .admin-number-input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text-1);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      padding: 9px 10px;
+    }
+
+    .user-hours-editor {
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+
+    .user-hours-editor h3 { font-size: 0.9rem; margin-bottom: 5px; }
+    .form-note { color: var(--text-3); font-size: 0.76rem; line-height: 1.45; }
+    .multiplier-control { max-width: 220px; margin-top: 14px; }
+
     .challenge-code {
       margin: 14px 0;
       padding: 12px;
@@ -956,6 +1022,7 @@
       .modal-body { padding: 18px 16px; }
       .modal-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
       .modal-stat { padding: 10px; }
+      .admin-field-grid { grid-template-columns: 1fr; }
       .alex-sticker { width: 54px; }
       .alex-sticker-right { display: none; }
       body::after { background-size: 120px auto; }
@@ -1025,6 +1092,10 @@
   </symbol>
   <symbol id="icon-ban" viewBox="0 0 24 24">
     <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM4 12a8 8 0 0 1 13.1-6.2L5.8 17.1A7.96 7.96 0 0 1 4 12Zm8 8a7.96 7.96 0 0 1-4.9-1.7L18.3 7.1A8 8 0 0 1 12 20Z"/>
+  </symbol>
+  <symbol id="icon-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15.2 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.8L15.2 3Z"/>
+    <path d="M17 21v-8H7v8M7 3v5h8"/>
   </symbol>
 </svg>
 <img class="alex-sticker alex-sticker-left" src="/alex-lazau.png" alt="" aria-hidden="true" />
@@ -1167,6 +1238,31 @@
     </div>
     <div class="modal-body" id="modal-body">
       <div class="modal-grid" id="modal-grid"></div>
+      <div class="user-hours-editor" id="user-hours-editor" hidden>
+        <h3>Edit leaderboard hours</h3>
+        <p class="form-note">Updates this user's leaderboard counters. Session history and channel history remain unchanged.</p>
+        <div class="admin-field-grid">
+          <label class="admin-field">
+            <span>All-time</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-total-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+          </label>
+          <label class="admin-field">
+            <span>Today</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-daily-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+          </label>
+          <label class="admin-field">
+            <span>This week</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-weekly-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+          </label>
+          <label class="admin-field">
+            <span>This month</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-monthly-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button class="action-btn" id="save-user-hours-btn" onclick="saveCurrentUserHours()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-save"></use></svg> Save hours</button>
+        </div>
+      </div>
       <div class="section-title">Activity Heatmap (by hour)</div>
       <div class="heatmap" id="modal-heatmap"></div>
       <div class="heatmap-labels" id="heatmap-labels"></div>
@@ -1187,7 +1283,7 @@
     <div class="modal-header">
       <div style="display:flex;align-items:center;gap:10px">
         <svg class="svg-icon" aria-hidden="true" style="color:var(--accent2);--icon-size:1.25rem"><use href="#icon-shield"></use></svg>
-        <div style="font-size:1.05rem;font-weight:700">Leaderboard Controls</div>
+        <div id="admin-modal-title" style="font-size:1.05rem;font-weight:700">Leaderboard Controls</div>
       </div>
       <button class="modal-close" onclick="closeAdminModal()" aria-label="Close"><svg class="svg-icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
@@ -1267,9 +1363,12 @@
     authorized: false,
     mode: null,
     username: null,
+    role: null,
     apiBase: '',
+    permissions: { manage_users: false, manage_multiplier: false },
     discord: { configured: false },
     blacklisted_users: [],
+    otto_multiplier: null,
   };
   const timeKeys = { total: 'total_time', daily: 'daily_time', weekly: 'weekly_time', monthly: 'monthly_time' };
 
@@ -1292,6 +1391,10 @@
     document.body.classList.add('alex-mode');
     document.getElementById('site-title').textContent = 'Alex Lazau';
     document.title = 'Alex Lazau - TeamSpeak Activity Tracker';
+    updateAdminButton();
+    if (document.getElementById('admin-modal-overlay').classList.contains('open')) {
+      renderAdminModal();
+    }
     void playAlexSpotted();
     clearInterval(alexModeInterval);
     alexModeInterval = setInterval(() => { void playAlexSpotted(); }, ALEX_REPEAT_MS);
@@ -1320,6 +1423,31 @@
 
   function isLoopbackDashboard() {
     return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  }
+
+  function isAlexModeActive() {
+    return document.body.classList.contains('alex-mode');
+  }
+
+  function canManageUsers() {
+    return Boolean(adminState.authorized && adminState.permissions?.manage_users);
+  }
+
+  function canManageMultiplier() {
+    return Boolean(adminState.authorized && adminState.permissions?.manage_multiplier);
+  }
+
+  function updateAdminButton() {
+    const button = document.getElementById('admin-btn');
+    if (!button) return;
+    const restrictedOtto = adminState.authorized && adminState.role === 'otto';
+    button.hidden = restrictedOtto && !isAlexModeActive();
+    const label = !adminState.authorized
+      ? 'Admin access'
+      : restrictedOtto
+        ? 'Otto multiplier'
+        : 'Manage';
+    button.innerHTML = `${svgIcon('shield')} ${label}`;
   }
 
   async function initializeAdminAccess() {
@@ -1351,9 +1479,7 @@
       }
     }
 
-    const button = document.getElementById('admin-btn');
-    button.hidden = false;
-    button.innerHTML = `${svgIcon('shield')} ${adminState.authorized ? 'Manage' : 'Admin access'}`;
+    updateAdminButton();
     updateUserAdminActions();
   }
 
@@ -1373,12 +1499,15 @@
       credentials: adminState.apiBase ? 'omit' : 'include',
     });
     adminState = { ...status, apiBase: adminState.apiBase };
-    const button = document.getElementById('admin-btn');
-    button.innerHTML = `${svgIcon('shield')} ${adminState.authorized ? 'Manage' : 'Admin access'}`;
+    updateAdminButton();
     updateUserAdminActions();
   }
 
   function openAdminModal() {
+    if (adminState.authorized && adminState.role === 'otto' && !isAlexModeActive()) {
+      showToast('Activate Alex mode to reveal Otto multiplier controls.');
+      return;
+    }
     document.getElementById('admin-modal-overlay').classList.add('open');
     renderAdminModal();
   }
@@ -1388,8 +1517,27 @@
     document.getElementById('admin-modal-overlay').classList.remove('open');
   }
 
+  function renderOttoMultiplierSection() {
+    const multiplier = Number(adminState.otto_multiplier);
+    const value = Number.isFinite(multiplier) ? multiplier : 2;
+    return `
+      <div class="admin-section">
+        <h3>Otto hours multiplier</h3>
+        <p>New active and AFK tracking for Otto's permanent UID is credited at this rate. Current-session presence stays real-time, and changing this value does not rewrite earlier history.</p>
+        <label class="admin-field multiplier-control">
+          <span>Multiplier</span>
+          <div class="input-with-unit"><span>x</span><input class="admin-number-input" id="otto-multiplier-input" type="number" min="0.1" max="100" step="0.1" inputmode="decimal" value="${value}" /></div>
+        </label>
+        <div class="modal-actions">
+          <button class="action-btn" id="save-otto-multiplier-btn" onclick="saveOttoMultiplier()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-save"></use></svg> Save multiplier</button>
+        </div>
+      </div>`;
+  }
+
   function renderAdminModal() {
     const body = document.getElementById('admin-modal-body');
+    document.getElementById('admin-modal-title').textContent =
+      adminState.role === 'otto' ? 'Otto Controls' : 'Leaderboard Controls';
     if (!adminState.authorized) {
       const challenge = pendingAdminChallenge
         ? `<div class="challenge-code">${esc(pendingAdminChallenge.code)}</div>
@@ -1404,10 +1552,19 @@
 
       body.innerHTML = `
         <div class="admin-section">
-          <h3>TeamSpeak Server Admin verification</h3>
-          <p>Editing access is granted only when the tracker sees the temporary code on an online TeamSpeak UID that belongs to an allowed Server Admin group.</p>
+          <h3>TeamSpeak identity verification</h3>
+          <p>Full editing requires an allowed Server Admin group. Otto's exact permanent UID can instead unlock only his multiplier control.</p>
           ${challenge}
         </div>`;
+      return;
+    }
+
+    const statusLine = `<div class="admin-status-line">${svgIcon('shield')} ${esc(adminState.username || 'Administrator')} verified via ${adminState.mode === 'local' ? 'this laptop' : 'TeamSpeak UID'}</div>`;
+    if (adminState.role === 'otto') {
+      body.innerHTML = isAlexModeActive()
+        ? `${statusLine}${renderOttoMultiplierSection()}
+           <div class="modal-actions"><button class="action-btn" onclick="logoutAdmin()">Sign out</button></div>`
+        : statusLine;
       return;
     }
 
@@ -1425,7 +1582,8 @@
           </div>`).join('')
       : `<div class="blacklist-row"><div class="blacklist-meta">No blacklisted users</div></div>`;
     body.innerHTML = `
-      <div class="admin-status-line">${svgIcon('shield')} ${esc(adminState.username || 'Administrator')} verified via ${adminState.mode === 'local' ? 'this laptop' : 'TeamSpeak UID'}</div>
+      ${statusLine}
+      ${renderOttoMultiplierSection()}
       <div class="admin-section">
         <h3>Discord statistics</h3>
         <p>${discord.configured ? `Automatic reports are enabled every ${discord.interval_minutes || 60} minutes.${sentText}` : 'No Discord webhook is configured yet. Run setup.ps1 to add one.'}</p>
@@ -1479,8 +1637,38 @@
       pendingAdminChallenge = null;
       adminState.apiBase = '';
       await refreshAdminState();
+      if (adminState.role === 'otto' && !isAlexModeActive()) {
+        closeAdminModal();
+        showToast('Otto access unlocked. Activate Alex mode to reveal it.');
+      } else {
+        renderAdminModal();
+        showToast(adminState.role === 'otto' ? 'Otto multiplier unlocked.' : 'Server Admin access unlocked.');
+      }
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function saveOttoMultiplier() {
+    if (!canManageMultiplier()) return;
+    const input = document.getElementById('otto-multiplier-input');
+    const multiplier = Number(input?.value);
+    if (!Number.isFinite(multiplier) || multiplier < 0.1 || multiplier > 100) {
+      showToast('Multiplier must be between 0.1 and 100.', true);
+      return;
+    }
+
+    const button = document.getElementById('save-otto-multiplier-btn');
+    if (button) button.disabled = true;
+    try {
+      await adminFetch('/api/admin/otto-multiplier', {
+        method: 'PATCH',
+        body: JSON.stringify({ multiplier }),
+      });
+      await refreshAdminState();
       renderAdminModal();
-      showToast('Server Admin access unlocked.');
+      showToast(`Otto's multiplier is now ${adminState.otto_multiplier}x.`);
     } catch (error) {
       showToast(error.message, true);
       if (button) button.disabled = false;
@@ -1532,11 +1720,14 @@
         authorized: false,
         mode: null,
         username: null,
+        role: null,
+        permissions: { manage_users: false, manage_multiplier: false },
         discord: { configured: false },
         blacklisted_users: [],
+        otto_multiplier: null,
       };
       renderAdminModal();
-      document.getElementById('admin-btn').innerHTML = `${svgIcon('shield')} Admin access`;
+      updateAdminButton();
       updateUserAdminActions();
     } catch (error) {
       showToast(error.message, true);
@@ -1545,7 +1736,10 @@
 
   function updateUserAdminActions() {
     const actions = document.getElementById('user-admin-actions');
-    if (actions) actions.hidden = !adminState.authorized || !currentModalUid;
+    const hoursEditor = document.getElementById('user-hours-editor');
+    const hidden = !canManageUsers() || !currentModalUid;
+    if (actions) actions.hidden = hidden;
+    if (hoursEditor) hoursEditor.hidden = hidden;
     const blacklistButton = document.getElementById('blacklist-user-btn');
     if (blacklistButton) {
       blacklistButton.classList.toggle('danger', !currentModalBlacklisted);
@@ -1554,7 +1748,7 @@
   }
 
   async function changeUserBlacklist(uid, blacklisted, username) {
-    if (!uid || !adminState.authorized) return;
+    if (!uid || !canManageUsers()) return;
     if (
       blacklisted &&
       !window.confirm(`Blacklist ${username}? Their presence stays visible, but new tracking stops.`)
@@ -1605,8 +1799,48 @@
     return changeUserBlacklist(uid, false, user ? user.username : 'User');
   }
 
+  async function saveCurrentUserHours() {
+    if (!currentModalUid || !canManageUsers()) return;
+    const uid = currentModalUid;
+    const username = currentModalName;
+    const fieldIds = {
+      total_time: 'edit-total-hours',
+      daily_time: 'edit-daily-hours',
+      weekly_time: 'edit-weekly-hours',
+      monthly_time: 'edit-monthly-hours',
+    };
+    const hours = {};
+    for (const [field, id] of Object.entries(fieldIds)) {
+      const value = Number(document.getElementById(id).value);
+      if (!Number.isFinite(value) || value < 0 || value > 1_000_000) {
+        showToast('Hours must be between 0 and 1,000,000.', true);
+        return;
+      }
+      hours[field] = value;
+    }
+    if ([hours.daily_time, hours.weekly_time, hours.monthly_time].some(value => value > hours.total_time)) {
+      showToast('Period hours cannot exceed all-time hours.', true);
+      return;
+    }
+
+    const button = document.getElementById('save-user-hours-btn');
+    if (button) button.disabled = true;
+    try {
+      await adminFetch(`/api/admin/users/${encodeURIComponent(uid)}/hours`, {
+        method: 'PATCH',
+        body: JSON.stringify({ uid, hours }),
+      });
+      await refreshAll();
+      await openModal(uid);
+      showToast(`Tracked hours updated for ${username}.`);
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
   async function resetCurrentUser() {
-    if (!currentModalUid || !adminState.authorized) return;
+    if (!currentModalUid || !canManageUsers()) return;
     const uid = currentModalUid;
     const username = currentModalName;
     if (!window.confirm(`Reset all tracked data for ${username}?`)) return;
@@ -1784,7 +2018,8 @@
     currentModalUid = uid;
     currentModalName = '';
     currentModalBlacklisted = false;
-    updateUserAdminActions();
+    document.getElementById('user-admin-actions').hidden = true;
+    document.getElementById('user-hours-editor').hidden = true;
 
     try {
       const data = await fetchJson(`/api/user/${encodeURIComponent(uid)}`);
@@ -1794,6 +2029,17 @@
       document.getElementById('modal-avatar').textContent = initials;
       document.getElementById('modal-name').textContent = data.username;
       document.getElementById('modal-badge').innerHTML = statusBadge(data);
+      const editableHours = [
+        ['edit-total-hours', data.total_time],
+        ['edit-daily-hours', data.daily_time],
+        ['edit-weekly-hours', data.weekly_time],
+        ['edit-monthly-hours', data.monthly_time],
+      ];
+      for (const [id, value] of editableHours) {
+        document.getElementById(id).value = String(
+          Math.round((Number(value) || 0) * 10_000) / 10_000,
+        );
+      }
 
       // Stats grid
       const modalStats = [
