@@ -713,8 +713,6 @@ localAdminApp.patch(
   requireLocalJson,
   asyncRoute(editUserHoursHandler),
 );
-localAdminApp.patch(
-);
 localAdminApp.delete(
   "/api/admin/data",
   requireLocalJson,
