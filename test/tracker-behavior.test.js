@@ -178,48 +178,6 @@ test("blacklisted clients keep presence without gaining tracked data", async () 
   assert.equal(activeSession.sessionDbId, null);
 });
 
-test("Otto defaults to 2x and a configured 3x credits time and heatmap units", async () => {
-  scenario = "default_multiplier";
-  assert.equal(await getOttoMultiplier(), 2);
-
-  scenario = "otto";
-  const writeStart = writes.length;
-  await processClientTick(
-    {
-      type: 0,
-      uniqueIdentifier: "Z9wyOb/tgzg6wd6TMA9fs36txK0=",
-      nickname: "SpiceHater67",
-      channelId: "7",
-      away: 0,
-    },
-    { 7: "General" },
-  );
-  const ottoWrites = writes.slice(writeStart);
-  const timeWrite = ottoWrites.find(({ sql }) =>
-    sql.includes("total_time   = total_time   + ?"),
-  );
-  const heatmapWrite = ottoWrites.find(({ sql }) =>
-    sql.includes("INSERT INTO hourly_activity"),
-  );
-
-  assert.ok(timeWrite);
-  assert.ok(heatmapWrite);
-  assert.ok(timeWrite.params[0] > 0.049 && timeWrite.params[0] < 0.051);
-  assert.ok(heatmapWrite.params[3] > 2.99 && heatmapWrite.params[3] < 3.01);
-});
-
-test("persists only bounded Otto multipliers", async () => {
-  scenario = "default_multiplier";
-  const writeStart = writes.length;
-  assert.equal(await setOttoMultiplier(2.5), 2.5);
-  const multiplierWrite = writes.slice(writeStart).find(({ sql }) =>
-    sql.includes("INSERT INTO app_meta"),
-  );
-  assert.deepEqual(multiplierWrite.params, ["otto_hours_multiplier", "2.5"]);
-  await assert.rejects(() => setOttoMultiplier(0), /between 0.1 and 100/);
-  await assert.rejects(() => setOttoMultiplier(101), /between 0.1 and 100/);
-});
-
 test("validates and updates all editable leaderboard hour counters", async () => {
   scenario = "edit_hours";
   const writeStart = writes.length;

@@ -1517,22 +1517,7 @@
     document.getElementById('admin-modal-overlay').classList.remove('open');
   }
 
-  function renderOttoMultiplierSection() {
-    const multiplier = Number(adminState.otto_multiplier);
-    const value = Number.isFinite(multiplier) ? multiplier : 2;
-    return `
-      <div class="admin-section">
-        <h3>Otto hours multiplier</h3>
-        <p>New active and AFK tracking for Otto's permanent UID is credited at this rate. Current-session presence stays real-time, and changing this value does not rewrite earlier history.</p>
-        <label class="admin-field multiplier-control">
-          <span>Multiplier</span>
-          <div class="input-with-unit"><span>x</span><input class="admin-number-input" id="otto-multiplier-input" type="number" min="0.1" max="100" step="0.1" inputmode="decimal" value="${value}" /></div>
-        </label>
-        <div class="modal-actions">
-          <button class="action-btn" id="save-otto-multiplier-btn" onclick="saveOttoMultiplier()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-save"></use></svg> Save multiplier</button>
-        </div>
-      </div>`;
-  }
+  function renderOttoMultiplierSection() { return ""; }
 
   function renderAdminModal() {
     const body = document.getElementById('admin-modal-body');
@@ -1650,30 +1635,7 @@
     }
   }
 
-  async function saveOttoMultiplier() {
-    if (!canManageMultiplier()) return;
-    const input = document.getElementById('otto-multiplier-input');
-    const multiplier = Number(input?.value);
-    if (!Number.isFinite(multiplier) || multiplier < 0.1 || multiplier > 100) {
-      showToast('Multiplier must be between 0.1 and 100.', true);
-      return;
-    }
-
-    const button = document.getElementById('save-otto-multiplier-btn');
-    if (button) button.disabled = true;
-    try {
-      await adminFetch('/api/admin/otto-multiplier', {
-        method: 'PATCH',
-        body: JSON.stringify({ multiplier }),
-      });
-      await refreshAdminState();
-      renderAdminModal();
-      showToast(`Otto's multiplier is now ${adminState.otto_multiplier}x.`);
-    } catch (error) {
-      showToast(error.message, true);
-      if (button) button.disabled = false;
-    }
-  }
+  async function saveOttoMultiplier() {}
 
   async function sendDiscordNow() {
     const button = document.getElementById('send-discord-btn');

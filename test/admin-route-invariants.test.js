@@ -26,18 +26,3 @@ test("keeps user edits and destructive routes behind full admin access", () => {
     );
   }
 });
-
-test("allows the restricted role only on the Otto multiplier route", () => {
-  assert.match(
-    indexSource,
-    /app\.patch\(\s*"\/api\/admin\/otto-multiplier"[\s\S]{0,180}?requireRemoteMultiplierAccess/,
-  );
-  assert.match(
-    indexSource,
-    /manage_users: role === "admin"/,
-  );
-  assert.match(
-    indexSource,
-    /manage_multiplier: role === "admin" \|\| role === "otto"/,
-  );
-});

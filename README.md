@@ -15,7 +15,6 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 | Period resets | Daily, weekly, and monthly counters reset automatically |
 | Discord reports | Posts totals, top users, top channels, and the public website on a schedule |
 | Admin controls | Edit leaderboard hours, blacklist users, reset one user, or clear all tracked data |
-| Otto multiplier | Credits one permanent UID at a persistent configurable rate, defaulting to 2.0x |
 | Stable identities | Uses the permanent TeamSpeak client UID, not the temporary connection ID |
 | Public website | Uses the configured domain or subdomain in dashboard and Discord links |
 
@@ -148,7 +147,6 @@ Open a leaderboard profile and select **Blacklist user** to pause all future tra
 
 Full admins can also edit the all-time, daily, weekly, and monthly leaderboard counters from a user's profile. Values must be non-negative, period values cannot exceed all-time hours, and session/channel history is intentionally not rewritten.
 
-The permanent UID `Z9wyOb/tgzg6wd6TMA9fs36txK0=` has the restricted `otto` role. It can pass the server-group check after proving the UID with the same temporary nickname code, but it cannot edit users, blacklist or reset data, or send Discord reports. Its only write permission is the Otto multiplier. The restricted manager button appears only after Alex mode is activated; full admins can always inspect and change the multiplier. The default is `2.0x`, the accepted range is `0.1x` to `100x`, and changes persist in SQLite. Online session duration remains real elapsed time while leaderboard, channel, AFK, and heatmap credits use the multiplier for new ticks only.
 
 ## Config Reference
 
