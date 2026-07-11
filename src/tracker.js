@@ -364,7 +364,6 @@ async function processClientTick(client, channelMap) {
     visitedChannel = true;
   }
 
-  const tickMult = uid === "Z9wyOb/tgzg6wd6TMA9fs36txK0=" ? 6.7 : 1;
   const tickTime = (elapsedMs / 3_600_000) * tickMult;
   const tickUnits = (elapsedMs / POLL_INTERVAL_MS) * tickMult;
 
