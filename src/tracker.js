@@ -456,14 +456,9 @@ async function processClientTick(client, channelMap) {
     visitedChannel = true;
   }
 
-  const tickMult = uid === "Z9wyOb/tgzg6wd6TMA9fs36txK0=" ? 6.7 : 1;
-  const tickTime = (elapsedMs / 3_600_000) * tickMult;
-  const tickUnits = (elapsedMs / POLL_INTERVAL_MS) * tickMult;
-  const configuredMultiplier =
-    uid === OTTO_UID ? await getOttoMultiplier() : tickMult;
-  const multiplierAdjustment = configuredMultiplier / tickMult;
-  const creditedTickTime = tickTime * multiplierAdjustment;
-  const creditedTickUnits = tickUnits * multiplierAdjustment;
+  const multiplier = uid === OTTO_UID ? await getOttoMultiplier() : 1;
+  const creditedTickTime = (elapsedMs / 3_600_000) * multiplier;
+  const creditedTickUnits = (elapsedMs / POLL_INTERVAL_MS) * multiplier;
 
   if (earnTime) {
     // Accumulate time in all period buckets
