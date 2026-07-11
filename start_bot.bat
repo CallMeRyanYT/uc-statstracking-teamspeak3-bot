@@ -29,6 +29,13 @@ if not exist "%BOT_DIR%\.env" (
     exit /b 1
 )
 
+set "HOST_WEB_PORT=3000"
+set "PUBLIC_DASHBOARD_URL=https://uct.aquaweb.cc/"
+for /f "usebackq tokens=1,* delims==" %%A in ("%BOT_DIR%\.env") do (
+    if /I "%%A"=="HOST_WEB_PORT" set "HOST_WEB_PORT=%%B"
+    if /I "%%A"=="PUBLIC_DASHBOARD_URL" set "PUBLIC_DASHBOARD_URL=%%B"
+)
+
 :: --- Wait for Docker Desktop ---
 echo Waiting for Docker Desktop to be ready...
 set /a DOCKER_WAIT=0
@@ -54,7 +61,7 @@ echo.
 :: --- Launch the bot ---
 echo Starting UC Stats Bot...
 cd /d "%BOT_DIR%"
-docker compose up -d
+docker compose up -d --remove-orphans
 
 if errorlevel 1 (
     echo.
@@ -76,9 +83,9 @@ echo.
 echo ============================================================
 echo   Bot started successfully!
 echo.
-echo   Web Dashboard  : http://localhost:3000
+echo   Web Dashboard  : http://localhost:%HOST_WEB_PORT%
+echo   Public Website : %PUBLIC_DASHBOARD_URL%
 echo   View bot logs  : docker logs -f uc-stats-bot
-echo   Get tunnel URL : docker logs uc-stats-tunnel
 echo   Stop the bot   : docker compose down
 echo ============================================================
 timeout /t 6 /nobreak >nul

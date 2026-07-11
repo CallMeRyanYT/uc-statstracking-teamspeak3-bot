@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UC Stats — TeamSpeak 3 Activity Tracker</title>
+  <title>Unknown Cyberia - TeamSpeak Activity Tracker</title>
   <meta name="description" content="Unknown Cyberia TeamSpeak 3 activity leaderboard and stats tracker." />
+  <meta name="theme-color" content="#020005" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -13,24 +15,26 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg-base:    #0b0d14;
-      --bg-card:    #111422;
-      --bg-glass:   rgba(17, 20, 34, 0.85);
-      --border:     rgba(99, 120, 255, 0.12);
-      --border-glow:rgba(99, 120, 255, 0.35);
-      --accent:     #6378ff;
-      --accent2:    #a78bfa;
-      --green:      #34d399;
-      --yellow:     #fbbf24;
-      --red:        #f87171;
-      --text-1:     #e8eaf6;
-      --text-2:     #8b92b8;
-      --text-3:     #555c80;
-      --gold:       #f6c90e;
-      --silver:     #c0c8e8;
-      --bronze:     #d4855a;
-      --radius:     14px;
-      --shadow:     0 8px 40px rgba(0,0,0,0.55);
+      --bg-base:    #020005;
+      --bg-card:    #09040f;
+      --bg-raised:  #12071d;
+      --bg-glass:   rgba(7, 2, 12, 0.94);
+      --border:     rgba(141, 37, 255, 0.34);
+      --border-glow:rgba(169, 44, 255, 0.82);
+      --accent:     #df19ff;
+      --accent2:    #8d2dff;
+      --green:      #36efa0;
+      --yellow:     #ffd447;
+      --red:        #ff4d87;
+      --cyan:       #28d7ff;
+      --text-1:     #fffaff;
+      --text-2:     #c8b7d8;
+      --text-3:     #786786;
+      --gold:       #ffd447;
+      --silver:     #d6ccdf;
+      --bronze:     #d989ff;
+      --radius:     8px;
+      --shadow:     0 18px 60px rgba(0, 0, 0, 0.76);
     }
 
     html { scroll-behavior: smooth; }
@@ -49,9 +53,9 @@
       position: fixed;
       inset: 0;
       background-image:
-        linear-gradient(rgba(99,120,255,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(99,120,255,0.04) 1px, transparent 1px);
-      background-size: 40px 40px;
+        linear-gradient(rgba(141, 45, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(141, 45, 255, 0.045) 1px, transparent 1px);
+      background-size: 44px 44px;
       pointer-events: none;
       z-index: 0;
     }
@@ -76,11 +80,12 @@
     }
 
     .logo-icon {
-      width: 46px; height: 46px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border-radius: 12px;
+      width: 52px; height: 52px;
+      background: #050008;
+      border: 1px solid var(--border-glow);
+      border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 0 24px rgba(99,120,255,0.4);
+      box-shadow: 0 0 28px rgba(141, 45, 255, 0.34);
       flex-shrink: 0;
     }
 
@@ -93,19 +98,13 @@
       vertical-align: -0.14em;
     }
 
-    .logo-icon .svg-icon {
-      --icon-size: 24px;
-      color: #fff;
-    }
+    .logo-icon img { width: 100%; height: 100%; display: block; }
 
     .logo-text h1 {
       font-size: 1.5rem;
       font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(90deg, var(--text-1), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      color: var(--text-1);
+      letter-spacing: 0;
     }
 
     .logo-text p {
@@ -113,6 +112,14 @@
       color: var(--text-3);
       font-weight: 400;
       margin-top: 2px;
+    }
+
+    .logo-kicker {
+      color: var(--accent2);
+      font-size: 0.66rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 2px;
     }
 
     .header-status {
@@ -483,12 +490,14 @@
       justify-content: center;
       padding: 20px;
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
-      transition: opacity 0.25s;
+      transition: opacity 0.25s, visibility 0.25s;
     }
 
     .modal-overlay.open {
       opacity: 1;
+      visibility: visible;
       pointer-events: all;
     }
 
@@ -572,6 +581,72 @@
 
     .admin-section h3 { font-size: 0.92rem; margin-bottom: 6px; }
     .admin-section p { color: var(--text-2); font-size: 0.8rem; line-height: 1.55; }
+
+    .admin-field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .admin-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .admin-field > span {
+      color: var(--text-3);
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .input-with-unit {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      background: #050008;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .input-with-unit:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 12px rgba(223, 25, 255, 0.14);
+    }
+
+    .input-with-unit > span {
+      color: var(--accent);
+      flex-shrink: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      padding: 0 10px;
+    }
+
+    .admin-number-input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text-1);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      padding: 9px 10px;
+    }
+
+    .user-hours-editor {
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+
+    .user-hours-editor h3 { font-size: 0.9rem; margin-bottom: 5px; }
+    .form-note { color: var(--text-3); font-size: 0.76rem; line-height: 1.45; }
+    .multiplier-control { max-width: 220px; margin-top: 14px; }
 
     .challenge-code {
       margin: 14px 0;
@@ -718,6 +793,201 @@
       z-index: 999;
     }
 
+    /* Unknown Cyberia visual system */
+    body * { letter-spacing: 0; }
+
+    .stat-card {
+      position: relative;
+      overflow: hidden;
+      background: rgba(9, 4, 15, 0.96);
+      border-color: rgba(141, 45, 255, 0.45);
+      box-shadow: inset 0 0 26px rgba(92, 17, 168, 0.07), 0 0 22px rgba(93, 17, 168, 0.1);
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 2px;
+      background: var(--accent2);
+      box-shadow: 0 0 12px currentColor;
+    }
+
+    .stat-card:nth-child(2)::before { background: var(--green); }
+    .stat-card:nth-child(3)::before { background: var(--accent); }
+    .stat-card:nth-child(4)::before { background: var(--cyan); }
+    .stat-card:nth-child(2) .icon { color: var(--green); }
+    .stat-card:nth-child(3) .icon { color: var(--accent); }
+    .stat-card:nth-child(4) .icon { color: var(--cyan); }
+
+    .panel {
+      background: rgba(7, 2, 12, 0.97);
+      border-color: rgba(141, 45, 255, 0.4);
+      box-shadow: inset 0 0 30px rgba(87, 13, 166, 0.05), 0 14px 38px rgba(0, 0, 0, 0.34);
+    }
+
+    .panel-header { background: rgba(92, 20, 161, 0.09); }
+
+    .tab-btn.active {
+      background: rgba(141, 45, 255, 0.2);
+      border-color: var(--accent2);
+      color: var(--text-1);
+      box-shadow: inset 0 0 12px rgba(141, 45, 255, 0.14), 0 0 9px rgba(141, 45, 255, 0.16);
+    }
+
+    .leaderboard-table tr.user-row:hover,
+    .online-item:hover { background: rgba(141, 45, 255, 0.09); }
+
+    .leaderboard-table td,
+    .online-item,
+    .compact-row { border-bottom-color: rgba(141, 45, 255, 0.12); }
+
+    .activity-type {
+      background: rgba(141, 45, 255, 0.16);
+      color: var(--accent2);
+    }
+
+    .online-time.afk { color: var(--yellow); }
+
+    .modal {
+      background: #09040f;
+      border-radius: 8px;
+      box-shadow: var(--shadow), 0 0 52px rgba(141, 45, 255, 0.2);
+    }
+
+    .action-btn,
+    .challenge-code,
+    .modal-stat { background: rgba(141, 45, 255, 0.1); }
+    .action-btn:hover { background: rgba(223, 25, 255, 0.16); }
+    .modal-stat { border-radius: 8px; }
+    .toast { background: #09040f; }
+    [data-tip]:hover::after { background: #12071d; }
+
+    footer a {
+      color: var(--accent2);
+      text-decoration: none;
+    }
+
+    footer a:hover { color: var(--accent); text-decoration: underline; }
+
+    .logo-text h1 { text-shadow: 0 0 18px rgba(141, 45, 255, 0.22); }
+    .logo-kicker { color: #bd68ff; }
+
+    #refresh-btn,
+    .header-btn {
+      background: #050008;
+      border-color: rgba(141, 45, 255, 0.48);
+      box-shadow: inset 0 0 13px rgba(141, 45, 255, 0.07);
+    }
+
+    #refresh-btn:hover,
+    .header-btn:hover {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 14px rgba(223, 25, 255, 0.11), 0 0 12px rgba(141, 45, 255, 0.18);
+    }
+
+    .status-badges {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .badge-blacklisted {
+      background: rgba(223, 25, 255, 0.13);
+      border: 1px solid rgba(223, 25, 255, 0.55);
+      color: #f39cff;
+      box-shadow: inset 0 0 10px rgba(223, 25, 255, 0.08), 0 0 8px rgba(223, 25, 255, 0.12);
+    }
+
+    .user-row.blacklisted { background: rgba(223, 25, 255, 0.025); }
+    .user-row.blacklisted .time-cell { color: var(--text-3); }
+
+    .online-state {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .blacklist-list {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .blacklist-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      min-height: 48px;
+      padding: 9px 11px;
+      border-bottom: 1px solid rgba(141, 45, 255, 0.14);
+    }
+
+    .blacklist-row:last-child { border-bottom: none; }
+    .blacklist-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.84rem; font-weight: 600; }
+    .blacklist-meta { color: var(--text-3); font-size: 0.7rem; margin-top: 2px; }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image: url('/alex-lazau.png');
+      background-size: 180px auto;
+      background-repeat: repeat;
+      background-position: 24px 24px;
+      opacity: 0;
+      filter: grayscale(0.2) contrast(1.1);
+      pointer-events: none;
+      transition: opacity 500ms ease;
+    }
+
+    body.alex-mode::after { opacity: 0.16; }
+
+    .alex-sticker {
+      position: fixed;
+      z-index: 3;
+      width: 78px;
+      aspect-ratio: 202 / 307;
+      object-fit: cover;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      box-shadow: 0 0 20px rgba(223, 25, 255, 0.55);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 300ms ease, transform 300ms ease;
+    }
+
+    .alex-sticker-left { left: 10px; bottom: 10px; transform: translateY(120%) rotate(-5deg); }
+    .alex-sticker-right { right: 10px; top: 42%; transform: translateX(120%) rotate(5deg); }
+    body.alex-mode .alex-sticker { opacity: 0.9; }
+    body.alex-mode .alex-sticker-left { transform: translateY(0) rotate(-5deg); }
+    body.alex-mode .alex-sticker-right { transform: translateX(0) rotate(5deg); }
+
+    body.alex-mode .logo-icon img {
+      border-radius: 6px;
+      content: url('/alex-lazau.png');
+      object-fit: cover;
+    }
+
+    body.alex-mode .stat-card:nth-child(2)::after {
+      content: '';
+      position: absolute;
+      right: 8px;
+      bottom: -12px;
+      width: 54px;
+      height: 74px;
+      background: url('/alex-lazau.png') center / cover no-repeat;
+      opacity: 0.68;
+      transform: rotate(7deg);
+      pointer-events: none;
+    }
+
     @media (max-width: 600px) {
       .page { padding: 0 12px 40px; }
       header { padding: 22px 0 20px; }
@@ -752,6 +1022,10 @@
       .modal-body { padding: 18px 16px; }
       .modal-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
       .modal-stat { padding: 10px; }
+      .admin-field-grid { grid-template-columns: 1fr; }
+      .alex-sticker { width: 54px; }
+      .alex-sticker-right { display: none; }
+      body::after { background-size: 120px auto; }
     }
 
     /* Scrollbar */
@@ -816,16 +1090,27 @@
   <symbol id="icon-move" viewBox="0 0 24 24">
     <path d="M7 5h10l-3-3h3.2L22 6.8l-4.8 4.8H14l3-3H7V5Zm10 14H7l3 3H6.8L2 17.2l4.8-4.8H10l-3 3h10V19Z"/>
   </symbol>
+  <symbol id="icon-ban" viewBox="0 0 24 24">
+    <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM4 12a8 8 0 0 1 13.1-6.2L5.8 17.1A7.96 7.96 0 0 1 4 12Zm8 8a7.96 7.96 0 0 1-4.9-1.7L18.3 7.1A8 8 0 0 1 12 20Z"/>
+  </symbol>
+  <symbol id="icon-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15.2 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.8L15.2 3Z"/>
+    <path d="M17 21v-8H7v8M7 3v5h8"/>
+  </symbol>
 </svg>
-<div class="page">
+<img class="alex-sticker alex-sticker-left" src="/alex-lazau.png" alt="" aria-hidden="true" />
+<img class="alex-sticker alex-sticker-right" src="/alex-lazau.png" alt="" aria-hidden="true" />
+
+<div class="page" id="dashboard-page">
 
   <!-- ── Header ─────────────────────────────────────────────────────────── -->
   <header>
     <div class="logo">
-      <div class="logo-icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-radio"></use></svg></div>
+      <div class="logo-icon"><img src="/favicon.svg" alt="" /></div>
       <div class="logo-text">
-        <h1>UC Stats Tracker</h1>
-        <p>TeamSpeak 3 Activity Monitoring</p>
+        <div class="logo-kicker">TeamSpeak activity tracker</div>
+        <h1 id="site-title">Unknown Cyberia</h1>
+        <p>Live presence, sessions, and channel statistics</p>
       </div>
     </div>
     <div class="header-status">
@@ -834,7 +1119,7 @@
         <span id="bot-status-text">Connecting…</span>
       </div>
       <button id="admin-btn" class="header-btn" onclick="openAdminModal()" hidden><svg class="svg-icon" aria-hidden="true"><use href="#icon-shield"></use></svg> Admin</button>
-      <button id="refresh-btn" onclick="refreshAll()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg> Refresh</button>
+      <button id="refresh-btn" onclick="handleRefreshClick()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg> Refresh</button>
     </div>
   </header>
 
@@ -842,7 +1127,7 @@
   <div class="stats-row" id="stats-row">
     <div class="stat-card">
       <div class="icon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-users"></use></svg></div>
-      <div class="label">Total Players</div>
+      <div class="label">Total Users</div>
       <div class="value" id="sc-users">—</div>
     </div>
     <div class="stat-card">
@@ -880,7 +1165,7 @@
         <thead>
           <tr>
             <th style="width:48px; text-align:center;">#</th>
-            <th>Player</th>
+            <th>User</th>
             <th>Time</th>
             <th>Status</th>
             <th>Last Seen</th>
@@ -934,7 +1219,7 @@
   <p class="refresh-info" id="last-refresh-text">Auto-refreshes every 30 seconds</p>
 
   <footer>
-    UC Stats Tracker — TeamSpeak 3 Activity Bot &nbsp;|&nbsp; Data refreshes every 60s
+    Unknown Cyberia TeamSpeak Tracker &nbsp;|&nbsp; <a id="public-site-link" href="https://uct.aquaweb.cc/">uct.aquaweb.cc</a>
   </footer>
 </div>
 
@@ -945,7 +1230,7 @@
       <div style="display:flex;align-items:center;gap:12px">
         <div class="avatar" id="modal-avatar">?</div>
         <div>
-          <div style="font-size:1.1rem;font-weight:700" id="modal-name">Player</div>
+          <div style="font-size:1.1rem;font-weight:700" id="modal-name">User</div>
           <div id="modal-badge" style="margin-top:4px"></div>
         </div>
       </div>
@@ -953,6 +1238,31 @@
     </div>
     <div class="modal-body" id="modal-body">
       <div class="modal-grid" id="modal-grid"></div>
+      <div class="user-hours-editor" id="user-hours-editor" hidden>
+        <h3>Edit leaderboard hours</h3>
+        <p class="form-note">Updates this user's leaderboard counters. Session history and channel history remain unchanged.</p>
+        <div class="admin-field-grid">
+          <label class="admin-field">
+            <span>All-time</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-total-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+          </label>
+          <label class="admin-field">
+            <span>Today</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-daily-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+          </label>
+          <label class="admin-field">
+            <span>This week</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-weekly-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+          </label>
+          <label class="admin-field">
+            <span>This month</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-monthly-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button class="action-btn" id="save-user-hours-btn" onclick="saveCurrentUserHours()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-save"></use></svg> Save hours</button>
+        </div>
+      </div>
       <div class="section-title">Activity Heatmap (by hour)</div>
       <div class="heatmap" id="modal-heatmap"></div>
       <div class="heatmap-labels" id="heatmap-labels"></div>
@@ -961,7 +1271,8 @@
       <div class="section-title">Recent Sessions</div>
       <div id="modal-sessions" style="font-size:0.8rem;color:var(--text-2);line-height:1.8"></div>
       <div class="modal-actions" id="user-admin-actions" hidden>
-        <button class="action-btn danger" id="reset-user-btn" onclick="resetCurrentUser()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-trash"></use></svg> Reset this player</button>
+        <button class="action-btn danger" id="blacklist-user-btn" onclick="toggleCurrentUserBlacklist()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-ban"></use></svg> Blacklist user</button>
+        <button class="action-btn danger" id="reset-user-btn" onclick="resetCurrentUser()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-trash"></use></svg> Reset this user</button>
       </div>
     </div>
   </div>
@@ -972,7 +1283,7 @@
     <div class="modal-header">
       <div style="display:flex;align-items:center;gap:10px">
         <svg class="svg-icon" aria-hidden="true" style="color:var(--accent2);--icon-size:1.25rem"><use href="#icon-shield"></use></svg>
-        <div style="font-size:1.05rem;font-weight:700">Leaderboard Controls</div>
+        <div id="admin-modal-title" style="font-size:1.05rem;font-weight:700">Leaderboard Controls</div>
       </div>
       <button class="modal-close" onclick="closeAdminModal()" aria-label="Close"><svg class="svg-icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
@@ -985,10 +1296,8 @@
 <script>
   // ── Helpers ──────────────────────────────────────────────────────────────
   function fmtHours(h) {
-    if (!h || isNaN(h)) return '0h 0m';
-    const hrs = Math.floor(h);
-    const min = Math.round((h - hrs) * 60);
-    return `${hrs}h ${min}m`;
+    const totalMinutes = Math.max(0, Math.round((Number(h) || 0) * 60));
+    return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
   }
 
   function fmtDate(iso) {
@@ -1026,9 +1335,13 @@
   }
 
   function statusBadge(row) {
-    if (!row.is_online) return `<span class="badge badge-offline">Offline</span>`;
-    if (row.is_afk)     return `<span class="badge badge-afk">${svgIcon('clock')} AFK</span>`;
-    return `<span class="badge badge-online">${svgIcon('status')} Online</span>`;
+    let presence = `<span class="badge badge-offline">Offline</span>`;
+    if (row.is_afk) presence = `<span class="badge badge-afk">${svgIcon('clock')} AFK</span>`;
+    else if (row.is_online) presence = `<span class="badge badge-online">${svgIcon('status')} Online</span>`;
+    const blacklist = row.is_blacklisted
+      ? `<span class="badge badge-blacklisted">${svgIcon('ban')} Blacklisted</span>`
+      : '';
+    return `<span class="status-badges">${presence}${blacklist}</span>`;
   }
 
   // ── State ─────────────────────────────────────────────────────────────────
@@ -1037,18 +1350,104 @@
   let hoursPerTick = 1 / 60;
   let currentModalUid = null;
   let currentModalName = '';
+  let currentModalBlacklisted = false;
+  let lastRefreshAt = null;
   let pendingAdminChallenge = null;
+  const ALEX_TRIGGER_CLICKS = 5;
+  const ALEX_REPEAT_MS = 10_000;
+  const alexAudio = new Audio('/alex-lazau-spotted.mp3');
+  alexAudio.preload = 'auto';
+  let refreshClickCount = 0;
+  let alexModeInterval = null;
   let adminState = {
     authorized: false,
     mode: null,
     username: null,
+    role: null,
     apiBase: '',
+    permissions: { manage_users: false, manage_multiplier: false },
     discord: { configured: false },
+    blacklisted_users: [],
+    otto_multiplier: null,
   };
   const timeKeys = { total: 'total_time', daily: 'daily_time', weekly: 'weekly_time', monthly: 'monthly_time' };
 
+  function randomAlexVolume() {
+    const roll = Math.random();
+    if (roll < 0.2) return 1;
+    if (roll < 0.45) return 0.16;
+    return 0.35 + Math.random() * 0.5;
+  }
+
+  function playAlexSpotted() {
+    alexAudio.pause();
+    alexAudio.currentTime = 0;
+    alexAudio.volume = randomAlexVolume();
+    return alexAudio.play().catch(() => {});
+  }
+
+  function activateAlexMode() {
+    if (document.body.classList.contains('alex-mode')) return;
+    document.body.classList.add('alex-mode');
+    document.getElementById('site-title').textContent = 'Alex Lazau';
+    document.title = 'Alex Lazau - TeamSpeak Activity Tracker';
+    updateAdminButton();
+    if (document.getElementById('admin-modal-overlay').classList.contains('open')) {
+      renderAdminModal();
+    }
+    void playAlexSpotted();
+    clearInterval(alexModeInterval);
+    alexModeInterval = setInterval(() => { void playAlexSpotted(); }, ALEX_REPEAT_MS);
+    showToast('ALEX LAZAU SPOTTED');
+  }
+
+  function handleRefreshClick() {
+    if (!document.body.classList.contains('alex-mode')) {
+      refreshClickCount += 1;
+      if (refreshClickCount >= ALEX_TRIGGER_CLICKS) activateAlexMode();
+    }
+    return refreshAll();
+  }
+
+  function setPublicSiteLink(rawUrl) {
+    const link = document.getElementById('public-site-link');
+    try {
+      const url = new URL(rawUrl);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported URL');
+      link.href = url.href;
+      link.textContent = url.host || url.href;
+    } catch {
+      link.hidden = true;
+    }
+  }
+
   function isLoopbackDashboard() {
     return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  }
+
+  function isAlexModeActive() {
+    return document.body.classList.contains('alex-mode');
+  }
+
+  function canManageUsers() {
+    return Boolean(adminState.authorized && adminState.permissions?.manage_users);
+  }
+
+  function canManageMultiplier() {
+    return Boolean(adminState.authorized && adminState.permissions?.manage_multiplier);
+  }
+
+  function updateAdminButton() {
+    const button = document.getElementById('admin-btn');
+    if (!button) return;
+    const restrictedOtto = adminState.authorized && adminState.role === 'otto';
+    button.hidden = restrictedOtto && !isAlexModeActive();
+    const label = !adminState.authorized
+      ? 'Admin access'
+      : restrictedOtto
+        ? 'Otto multiplier'
+        : 'Manage';
+    button.innerHTML = `${svgIcon('shield')} ${label}`;
   }
 
   async function initializeAdminAccess() {
@@ -1058,6 +1457,8 @@
     } catch {
       return;
     }
+
+    setPublicSiteLink(config.public_dashboard_url || 'https://uct.aquaweb.cc/');
 
     if (isLoopbackDashboard() && config.admin_port) {
       const localBase = `http://${location.hostname}:${config.admin_port}`;
@@ -1078,9 +1479,7 @@
       }
     }
 
-    const button = document.getElementById('admin-btn');
-    button.hidden = false;
-    button.innerHTML = `${svgIcon('shield')} ${adminState.authorized ? 'Manage' : 'Admin access'}`;
+    updateAdminButton();
     updateUserAdminActions();
   }
 
@@ -1100,12 +1499,15 @@
       credentials: adminState.apiBase ? 'omit' : 'include',
     });
     adminState = { ...status, apiBase: adminState.apiBase };
-    const button = document.getElementById('admin-btn');
-    button.innerHTML = `${svgIcon('shield')} ${adminState.authorized ? 'Manage' : 'Admin access'}`;
+    updateAdminButton();
     updateUserAdminActions();
   }
 
   function openAdminModal() {
+    if (adminState.authorized && adminState.role === 'otto' && !isAlexModeActive()) {
+      showToast('Activate Alex mode to reveal Otto multiplier controls.');
+      return;
+    }
     document.getElementById('admin-modal-overlay').classList.add('open');
     renderAdminModal();
   }
@@ -1115,8 +1517,27 @@
     document.getElementById('admin-modal-overlay').classList.remove('open');
   }
 
+  function renderOttoMultiplierSection() {
+    const multiplier = Number(adminState.otto_multiplier);
+    const value = Number.isFinite(multiplier) ? multiplier : 2;
+    return `
+      <div class="admin-section">
+        <h3>Otto hours multiplier</h3>
+        <p>New active and AFK tracking for Otto's permanent UID is credited at this rate. Current-session presence stays real-time, and changing this value does not rewrite earlier history.</p>
+        <label class="admin-field multiplier-control">
+          <span>Multiplier</span>
+          <div class="input-with-unit"><span>x</span><input class="admin-number-input" id="otto-multiplier-input" type="number" min="0.1" max="100" step="0.1" inputmode="decimal" value="${value}" /></div>
+        </label>
+        <div class="modal-actions">
+          <button class="action-btn" id="save-otto-multiplier-btn" onclick="saveOttoMultiplier()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-save"></use></svg> Save multiplier</button>
+        </div>
+      </div>`;
+  }
+
   function renderAdminModal() {
     const body = document.getElementById('admin-modal-body');
+    document.getElementById('admin-modal-title').textContent =
+      adminState.role === 'otto' ? 'Otto Controls' : 'Leaderboard Controls';
     if (!adminState.authorized) {
       const challenge = pendingAdminChallenge
         ? `<div class="challenge-code">${esc(pendingAdminChallenge.code)}</div>
@@ -1131,17 +1552,38 @@
 
       body.innerHTML = `
         <div class="admin-section">
-          <h3>TeamSpeak Server Admin verification</h3>
-          <p>Editing access is granted only when the tracker sees the temporary code on an online TeamSpeak UID that belongs to an allowed Server Admin group.</p>
+          <h3>TeamSpeak identity verification</h3>
+          <p>Full editing requires an allowed Server Admin group. Otto's exact permanent UID can instead unlock only his multiplier control.</p>
           ${challenge}
         </div>`;
       return;
     }
 
+    const statusLine = `<div class="admin-status-line">${svgIcon('shield')} ${esc(adminState.username || 'Administrator')} verified via ${adminState.mode === 'local' ? 'this laptop' : 'TeamSpeak UID'}</div>`;
+    if (adminState.role === 'otto') {
+      body.innerHTML = isAlexModeActive()
+        ? `${statusLine}${renderOttoMultiplierSection()}
+           <div class="modal-actions"><button class="action-btn" onclick="logoutAdmin()">Sign out</button></div>`
+        : statusLine;
+      return;
+    }
+
     const discord = adminState.discord || {};
     const sentText = discord.last_sent_at ? ` Last sent ${fmtDate(discord.last_sent_at)}.` : '';
+    const blacklistedUsers = adminState.blacklisted_users || [];
+    const blacklistRows = blacklistedUsers.length
+      ? blacklistedUsers.map(user => `
+          <div class="blacklist-row">
+            <div>
+              <div class="blacklist-name">${esc(user.username)}</div>
+              <div class="blacklist-meta">${user.is_afk ? 'AFK' : user.is_online ? 'Online' : `Last seen ${fmtDate(user.last_seen)}`}</div>
+            </div>
+            <button class="action-btn" type="button" onclick="removeBlacklist('${encodeURIComponent(user.uid)}')" aria-label="Remove ${esc(user.username)} from blacklist">${svgIcon('ban')} Unblacklist</button>
+          </div>`).join('')
+      : `<div class="blacklist-row"><div class="blacklist-meta">No blacklisted users</div></div>`;
     body.innerHTML = `
-      <div class="admin-status-line">${svgIcon('shield')} ${esc(adminState.username || 'Administrator')} verified via ${adminState.mode === 'local' ? 'this laptop' : 'TeamSpeak UID'}</div>
+      ${statusLine}
+      ${renderOttoMultiplierSection()}
       <div class="admin-section">
         <h3>Discord statistics</h3>
         <p>${discord.configured ? `Automatic reports are enabled every ${discord.interval_minutes || 60} minutes.${sentText}` : 'No Discord webhook is configured yet. Run setup.ps1 to add one.'}</p>
@@ -1150,8 +1592,13 @@
         </div>
       </div>
       <div class="admin-section">
+        <h3>User blacklist</h3>
+        <p>Blacklisted users keep their live presence and existing leaderboard history, but all new tracking is disabled and they rank below everyone else.</p>
+        <div class="blacklist-list">${blacklistRows}</div>
+      </div>
+      <div class="admin-section">
         <h3>Tracked data</h3>
-        <p>This permanently removes every player, session, channel total, activity event, and heatmap entry.</p>
+        <p>This permanently removes every user, session, channel total, activity event, and heatmap entry.</p>
         <div class="modal-actions">
           <button class="action-btn danger" id="reset-all-btn" onclick="resetAllData()">${svgIcon('trash')} Reset all data</button>
           ${adminState.mode === 'teamspeak' ? '<button class="action-btn" onclick="logoutAdmin()">Sign out</button>' : ''}
@@ -1190,8 +1637,38 @@
       pendingAdminChallenge = null;
       adminState.apiBase = '';
       await refreshAdminState();
+      if (adminState.role === 'otto' && !isAlexModeActive()) {
+        closeAdminModal();
+        showToast('Otto access unlocked. Activate Alex mode to reveal it.');
+      } else {
+        renderAdminModal();
+        showToast(adminState.role === 'otto' ? 'Otto multiplier unlocked.' : 'Server Admin access unlocked.');
+      }
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function saveOttoMultiplier() {
+    if (!canManageMultiplier()) return;
+    const input = document.getElementById('otto-multiplier-input');
+    const multiplier = Number(input?.value);
+    if (!Number.isFinite(multiplier) || multiplier < 0.1 || multiplier > 100) {
+      showToast('Multiplier must be between 0.1 and 100.', true);
+      return;
+    }
+
+    const button = document.getElementById('save-otto-multiplier-btn');
+    if (button) button.disabled = true;
+    try {
+      await adminFetch('/api/admin/otto-multiplier', {
+        method: 'PATCH',
+        body: JSON.stringify({ multiplier }),
+      });
+      await refreshAdminState();
       renderAdminModal();
-      showToast('Server Admin access unlocked.');
+      showToast(`Otto's multiplier is now ${adminState.otto_multiplier}x.`);
     } catch (error) {
       showToast(error.message, true);
       if (button) button.disabled = false;
@@ -1222,7 +1699,7 @@
         body: JSON.stringify({ confirm: 'RESET' }),
       });
       closeAdminModal();
-      await refreshAll();
+      await Promise.all([refreshAdminState(), refreshAll()]);
       showToast('All tracked data was reset.');
     } catch (error) {
       showToast(error.message, true);
@@ -1238,9 +1715,19 @@
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
       });
-      adminState = { ...adminState, authorized: false, mode: null, username: null, discord: { configured: false } };
+      adminState = {
+        ...adminState,
+        authorized: false,
+        mode: null,
+        username: null,
+        role: null,
+        permissions: { manage_users: false, manage_multiplier: false },
+        discord: { configured: false },
+        blacklisted_users: [],
+        otto_multiplier: null,
+      };
       renderAdminModal();
-      document.getElementById('admin-btn').innerHTML = `${svgIcon('shield')} Admin access`;
+      updateAdminButton();
       updateUserAdminActions();
     } catch (error) {
       showToast(error.message, true);
@@ -1249,11 +1736,111 @@
 
   function updateUserAdminActions() {
     const actions = document.getElementById('user-admin-actions');
-    if (actions) actions.hidden = !adminState.authorized || !currentModalUid;
+    const hoursEditor = document.getElementById('user-hours-editor');
+    const hidden = !canManageUsers() || !currentModalUid;
+    if (actions) actions.hidden = hidden;
+    if (hoursEditor) hoursEditor.hidden = hidden;
+    const blacklistButton = document.getElementById('blacklist-user-btn');
+    if (blacklistButton) {
+      blacklistButton.classList.toggle('danger', !currentModalBlacklisted);
+      blacklistButton.innerHTML = `${svgIcon('ban')} ${currentModalBlacklisted ? 'Remove from blacklist' : 'Blacklist user'}`;
+    }
+  }
+
+  async function changeUserBlacklist(uid, blacklisted, username) {
+    if (!uid || !canManageUsers()) return;
+    if (
+      blacklisted &&
+      !window.confirm(`Blacklist ${username}? Their presence stays visible, but new tracking stops.`)
+    ) return;
+
+    const button = uid === currentModalUid
+      ? document.getElementById('blacklist-user-btn')
+      : null;
+    if (button) button.disabled = true;
+    try {
+      await adminFetch(`/api/admin/users/${encodeURIComponent(uid)}/blacklist`, {
+        method: 'POST',
+        body: JSON.stringify({ uid, blacklisted }),
+      });
+      if (uid === currentModalUid) currentModalBlacklisted = blacklisted;
+      await Promise.all([refreshAdminState(), refreshAll()]);
+
+      if (uid === currentModalUid) {
+        const row = allUsers.find(user => user.uid === uid) || {
+          is_online: false,
+          is_afk: false,
+          is_blacklisted: blacklisted,
+        };
+        document.getElementById('modal-badge').innerHTML = statusBadge(row);
+      }
+      if (document.getElementById('admin-modal-overlay').classList.contains('open')) {
+        renderAdminModal();
+      }
+      updateUserAdminActions();
+      showToast(`${username} was ${blacklisted ? 'blacklisted' : 'removed from the blacklist'}.`);
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  function toggleCurrentUserBlacklist() {
+    return changeUserBlacklist(
+      currentModalUid,
+      !currentModalBlacklisted,
+      currentModalName,
+    );
+  }
+
+  function removeBlacklist(encodedUid) {
+    const uid = decodeURIComponent(encodedUid);
+    const user = (adminState.blacklisted_users || []).find(item => item.uid === uid);
+    return changeUserBlacklist(uid, false, user ? user.username : 'User');
+  }
+
+  async function saveCurrentUserHours() {
+    if (!currentModalUid || !canManageUsers()) return;
+    const uid = currentModalUid;
+    const username = currentModalName;
+    const fieldIds = {
+      total_time: 'edit-total-hours',
+      daily_time: 'edit-daily-hours',
+      weekly_time: 'edit-weekly-hours',
+      monthly_time: 'edit-monthly-hours',
+    };
+    const hours = {};
+    for (const [field, id] of Object.entries(fieldIds)) {
+      const value = Number(document.getElementById(id).value);
+      if (!Number.isFinite(value) || value < 0 || value > 1_000_000) {
+        showToast('Hours must be between 0 and 1,000,000.', true);
+        return;
+      }
+      hours[field] = value;
+    }
+    if ([hours.daily_time, hours.weekly_time, hours.monthly_time].some(value => value > hours.total_time)) {
+      showToast('Period hours cannot exceed all-time hours.', true);
+      return;
+    }
+
+    const button = document.getElementById('save-user-hours-btn');
+    if (button) button.disabled = true;
+    try {
+      await adminFetch(`/api/admin/users/${encodeURIComponent(uid)}/hours`, {
+        method: 'PATCH',
+        body: JSON.stringify({ uid, hours }),
+      });
+      await refreshAll();
+      await openModal(uid);
+      showToast(`Tracked hours updated for ${username}.`);
+    } catch (error) {
+      showToast(error.message, true);
+      if (button) button.disabled = false;
+    }
   }
 
   async function resetCurrentUser() {
-    if (!currentModalUid || !adminState.authorized) return;
+    if (!currentModalUid || !canManageUsers()) return;
     const uid = currentModalUid;
     const username = currentModalName;
     if (!window.confirm(`Reset all tracked data for ${username}?`)) return;
@@ -1265,7 +1852,7 @@
         body: JSON.stringify({ uid }),
       });
       closeModal();
-      await refreshAll();
+      await Promise.all([refreshAdminState(), refreshAll()]);
       showToast(`${username} was reset.`);
     } catch (error) {
       showToast(error.message, true);
@@ -1312,8 +1899,11 @@
   function renderLeaderboard() {
     const key = timeKeys[currentTab] || 'total_time';
     const sorted = [...allUsers]
-      .filter(u => (u[key] || 0) > 0 || u.is_online)
-      .sort((a, b) => (b[key] || 0) - (a[key] || 0))
+      .filter(u => (u[key] || 0) > 0 || u.is_online || u.is_blacklisted)
+      .sort((a, b) =>
+        Number(Boolean(a.is_blacklisted)) - Number(Boolean(b.is_blacklisted)) ||
+        (b[key] || 0) - (a[key] || 0),
+      )
       .slice(0, 20);
 
     const tbody = document.getElementById('leaderboard-body');
@@ -1323,18 +1913,18 @@
     }
 
     tbody.innerHTML = sorted.map((u, i) => {
-      const rankClass = i < 3 ? ` rank-${i+1}` : '';
+      const rankClass = i < 3 && !u.is_blacklisted ? ` rank-${i+1}` : '';
       const initials = u.username.slice(0,2).toUpperCase();
       const timeVal = fmtHours(u[key] || 0);
       return `
-        <tr class="user-row" onclick="openModal('${u.uid}')">
-          <td class="rank-cell${rankClass}">${rankLabel(i)}</td>
+        <tr class="user-row${u.is_blacklisted ? ' blacklisted' : ''}" onclick="openModal('${u.uid}')">
+          <td class="rank-cell${rankClass}">${u.is_blacklisted ? `#${i+1}` : rankLabel(i)}</td>
           <td>
             <div class="user-cell">
               <div class="avatar">${esc(initials)}</div>
               <div>
                 <div class="user-name">${esc(u.username)}</div>
-                <div class="user-meta">Sessions: ${u.session_count || 0}</div>
+                <div class="user-meta">Sessions: ${u.session_count || 0}${u.is_blacklisted ? ' | Tracking disabled' : ''}</div>
               </div>
             </div>
           </td>
@@ -1359,9 +1949,12 @@
         <div class="online-dot${u.is_afk ? ' afk' : ''}"></div>
         <div class="online-info">
           <div class="online-name">${esc(u.username)}${u.is_afk ? ' [AFK]' : ''}</div>
-          <div class="online-detail">${esc(u.channel || '')}</div>
+          <div class="online-detail">${esc(u.channel || '')}${u.is_blacklisted ? ' | Tracking disabled' : u.is_afk ? ' | Tracking paused' : ''}</div>
         </div>
-        <div class="online-time">${fmtHours(u.sessionHours)}</div>
+        <div class="online-state">
+          ${u.is_blacklisted ? `<span class="badge badge-blacklisted">${svgIcon('ban')} Blacklisted</span>` : ''}
+          <div class="online-time${u.is_afk ? ' afk' : ''}">${u.is_afk ? 'AFK' : u.is_blacklisted ? 'Online' : fmtHours(u.sessionHours)}</div>
+        </div>
       </li>`).join('');
   }
 
@@ -1424,18 +2017,32 @@
     overlay.classList.add('open');
     currentModalUid = uid;
     currentModalName = '';
-    updateUserAdminActions();
+    currentModalBlacklisted = false;
+    document.getElementById('user-admin-actions').hidden = true;
+    document.getElementById('user-hours-editor').hidden = true;
 
     try {
       const data = await fetchJson(`/api/user/${encodeURIComponent(uid)}`);
       const initials = data.username.slice(0,2).toUpperCase();
       currentModalName = data.username;
+      currentModalBlacklisted = Boolean(data.is_blacklisted);
       document.getElementById('modal-avatar').textContent = initials;
       document.getElementById('modal-name').textContent = data.username;
       document.getElementById('modal-badge').innerHTML = statusBadge(data);
+      const editableHours = [
+        ['edit-total-hours', data.total_time],
+        ['edit-daily-hours', data.daily_time],
+        ['edit-weekly-hours', data.weekly_time],
+        ['edit-monthly-hours', data.monthly_time],
+      ];
+      for (const [id, value] of editableHours) {
+        document.getElementById(id).value = String(
+          Math.round((Number(value) || 0) * 10_000) / 10_000,
+        );
+      }
 
       // Stats grid
-      document.getElementById('modal-grid').innerHTML = [
+      const modalStats = [
         { label: 'Total Time',    val: fmtHours(data.total_time) },
         { label: 'Rank',          val: `#${data.rank}` },
         { label: 'Today',         val: fmtHours(data.daily_time) },
@@ -1444,7 +2051,11 @@
         { label: 'AFK Time',      val: fmtHours(data.afk_time) },
         { label: 'Sessions',      val: data.session_count },
         { label: 'First Seen',    val: fmtDate(data.first_seen) },
-      ].map(s => `
+      ];
+      if (data.is_blacklisted) {
+        modalStats.unshift({ label: 'Tracking', val: 'Blacklisted' });
+      }
+      document.getElementById('modal-grid').innerHTML = modalStats.map(s => `
         <div class="modal-stat">
           <div class="ms-label">${s.label}</div>
           <div class="ms-val">${s.val}</div>
@@ -1458,7 +2069,7 @@
         const t = tickMap[i] || 0;
         const intensity = Math.round((t / maxTick) * 100);
         const bg = t > 0
-          ? `linear-gradient(135deg, rgba(99,120,255,${0.15 + intensity/100*0.85}), rgba(167,139,250,${0.1 + intensity/100*0.5}))`
+          ? `linear-gradient(135deg, rgba(141,45,255,${0.15 + intensity/100*0.85}), rgba(223,25,255,${0.1 + intensity/100*0.5}))`
           : 'var(--border)';
         return `<div class="heatmap-cell" data-tip="${i}:00 – ${i+1 < 10 ? '0':''}${i+1}:00 (${fmtHours(t * hoursPerTick)})" style="background:${bg}"></div>`;
       }).join('');
@@ -1498,6 +2109,7 @@
     document.getElementById('modal-overlay').classList.remove('open');
     currentModalUid = null;
     currentModalName = '';
+    currentModalBlacklisted = false;
     updateUserAdminActions();
   }
 
@@ -1515,20 +2127,38 @@
   }
 
   // ── Refresh ───────────────────────────────────────────────────────────────
-  function refreshAll() {
+  function updateRefreshInfo() {
+    const now = new Date();
+    const liveTime = now.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const age = lastRefreshAt === null
+      ? 'waiting for data'
+      : `${Math.max(0, Math.floor((now.getTime() - lastRefreshAt) / 1000))}s ago`;
+    document.getElementById('last-refresh-text').textContent =
+      `Updated ${age} | Local time ${liveTime} | Refreshes every 30s`;
+  }
+
+  async function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.innerHTML = `${svgIcon('refresh')} Loading...`;
-    return fetchAll().finally(() => {
+    try {
+      await fetchAll();
+      lastRefreshAt = Date.now();
+    } finally {
       btn.innerHTML = `${svgIcon('refresh')} Refresh`;
-      document.getElementById('last-refresh-text').textContent =
-        `Last refresh: ${new Date().toLocaleTimeString()} — Auto-refreshes every 30s`;
-    });
+      updateRefreshInfo();
+    }
   }
 
   // Auto-refresh every 30 seconds
   setInterval(refreshAll, 30_000);
+  setInterval(updateRefreshInfo, 1_000);
 
   // Initial load
+  updateRefreshInfo();
   initializeAdminAccess();
   refreshAll();
 </script>

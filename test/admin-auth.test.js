@@ -19,6 +19,7 @@ test("verifies a Server Admin by permanent UID and follows nickname changes", ()
   const verified = auth.verifyChallenge(challenge.id);
   assert.equal(verified.ok, true);
   assert.equal(verified.uid, "permanent-user-uid");
+  assert.equal(verified.role, "admin");
 
   auth.updateClients([
     {
@@ -48,6 +49,47 @@ test("rejects a matching nickname without an allowed admin group", () => {
   const result = auth.verifyChallenge(challenge.id);
   assert.equal(result.ok, false);
   assert.match(result.reason, /not in an allowed Server Admin group/);
+});
+
+test("grants an exact UID a restricted role without an admin group", () => {
+  const auth = new TeamSpeakAdminAuth({
+    adminGroupIds: "6",
+    restrictedUsers: {
+      "otto-permanent-uid": "otto",
+    },
+  });
+  const challenge = auth.createChallenge();
+  auth.updateClients([
+    {
+      uniqueIdentifier: "otto-permanent-uid",
+      nickname: `SpiceHater67 ${challenge.code}`,
+      servergroups: ["8"],
+    },
+  ]);
+
+  const verified = auth.verifyChallenge(challenge.id);
+  assert.equal(verified.ok, true);
+  assert.equal(verified.uid, "otto-permanent-uid");
+  assert.equal(verified.role, "otto");
+  assert.equal(auth.getSession(verified.token).role, "otto");
+});
+
+test("keeps an exact restricted UID restricted even if it gains an admin group", () => {
+  const auth = new TeamSpeakAdminAuth({
+    adminGroupIds: "6",
+    restrictedUsers: { "otto-permanent-uid": "otto" },
+  });
+  const challenge = auth.createChallenge();
+  auth.updateClients([
+    {
+      uniqueIdentifier: "otto-permanent-uid",
+      nickname: `Otto ${challenge.code}`,
+      servergroups: ["6"],
+    },
+  ]);
+
+  const verified = auth.verifyChallenge(challenge.id);
+  assert.equal(verified.role, "otto");
 });
 
 test("revokes effective access when the TeamSpeak identity goes offline", () => {

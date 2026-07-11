@@ -34,6 +34,16 @@ db.serialize(() => {
     )
   `);
 
+  // User blacklist
+  // Presence-only users remain visible but do not accumulate tracking data.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS user_blacklist (
+      uid        TEXT PRIMARY KEY,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
+    )
+  `);
+
   // ── Sessions ───────────────────────────────────────────────────────────────
   db.run(`
     CREATE TABLE IF NOT EXISTS sessions (

@@ -5,6 +5,7 @@ const {
   buildDiscordPayload,
   createDiscordReporter,
   validateDiscordWebhookUrl,
+  validatePublicDashboardUrl,
 } = require("../src/discord");
 
 test("accepts official Discord webhook URLs and rejects lookalike hosts", () => {
@@ -22,6 +23,21 @@ test("accepts official Discord webhook URLs and rejects lookalike hosts", () => 
   );
 });
 
+test("normalizes public dashboard URLs and rejects unsafe schemes", () => {
+  assert.equal(
+    validatePublicDashboardUrl("https://uct.aquaweb.cc"),
+    "https://uct.aquaweb.cc/",
+  );
+  assert.throws(
+    () => validatePublicDashboardUrl("javascript:alert(1)"),
+    /must use HTTP or HTTPS/,
+  );
+  assert.throws(
+    () => validatePublicDashboardUrl("https://user:password@uct.aquaweb.cc/"),
+    /cannot contain login credentials/,
+  );
+});
+
 test("builds a mention-safe statistics embed", () => {
   const payload = buildDiscordPayload(
     {
@@ -31,12 +47,65 @@ test("builds a mention-safe statistics embed", () => {
       ],
       channels: [{ channel_name: "Lobby", total_time: 2.5 }],
     },
-    { intervalMinutes: 60 },
+    {
+      intervalMinutes: 60,
+      dashboardUrl: "https://uct.aquaweb.cc/",
+    },
   );
 
   assert.deepEqual(payload.allowed_mentions, { parse: [] });
   assert.match(payload.embeds[0].description, /@\u200beveryone/);
   assert.match(payload.embeds[0].description, /\\\*Admin\\\*/);
+  assert.equal(payload.embeds[0].fields[0].name, "Users");
+  assert.equal(
+    payload.embeds[0].fields.at(-1).value,
+    "<https://uct.aquaweb.cc/>",
+  );
+  assert.match(payload.embeds[0].footer.text, /https:\/\/uct\.aquaweb\.cc\//);
+});
+
+test("marks away users as AFK instead of online in Discord", () => {
+  const payload = buildDiscordPayload({
+    totals: { users: 1, online: 1, total_hours: 1, total_sessions: 1 },
+    leaderboard: [
+      { username: "Away User", total_time: 1, is_online: 1, is_afk: 1 },
+    ],
+    channels: [],
+  });
+
+  assert.match(payload.embeds[0].description, /\(AFK\)/);
+  assert.doesNotMatch(payload.embeds[0].description, /\(online\)/);
+});
+
+test("marks blacklisted users in Discord statistics", () => {
+  const payload = buildDiscordPayload({
+    totals: { users: 1, online: 1, total_hours: 1, total_sessions: 1 },
+    leaderboard: [
+      {
+        username: "Blocked User",
+        total_time: 1,
+        is_online: 1,
+        is_afk: 1,
+        is_blacklisted: 1,
+      },
+    ],
+    channels: [],
+  });
+
+  assert.match(payload.embeds[0].description, /\(AFK, blacklisted\)/);
+});
+
+test("carries rounded minutes into the next hour", () => {
+  const payload = buildDiscordPayload({
+    totals: { users: 1, online: 0, total_hours: 1.999, total_sessions: 1 },
+    leaderboard: [
+      { username: "Precise User", total_time: 1.999, is_online: 0 },
+    ],
+    channels: [],
+  });
+
+  assert.match(payload.embeds[0].description, /`2h 0m`/);
+  assert.equal(payload.embeds[0].fields[2].value, "2h 0m");
 });
 
 test("sends with wait=true and records the successful report time", async () => {

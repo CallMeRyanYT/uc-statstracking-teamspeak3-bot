@@ -17,28 +17,140 @@
 
 const db = require("./database");
 
-const POLL_INTERVAL_MS =
-  parseInt(process.env.POLL_INTERVAL_MS, 10) || 60_000;
-const AWAY_THRESHOLD_MIN =
-  parseInt(process.env.AFK_AWAY_THRESHOLD_MINUTES) || 5;
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const POLL_INTERVAL_MS = parsePositiveInt(
+  process.env.POLL_INTERVAL_MS,
+  60_000,
+);
+const AWAY_THRESHOLD_MIN = parsePositiveInt(
+  process.env.AFK_AWAY_THRESHOLD_MINUTES,
+  5,
+);
+const OTTO_UID = "Z9wyOb/tgzg6wd6TMA9fs36txK0=";
+const DEFAULT_OTTO_MULTIPLIER = 2;
+const MIN_OTTO_MULTIPLIER = 0.1;
+const MAX_OTTO_MULTIPLIER = 100;
+const OTTO_MULTIPLIER_META_KEY = "otto_hours_multiplier";
+const TRACKED_HOUR_FIELDS = [
+  "total_time",
+  "daily_time",
+  "weekly_time",
+  "monthly_time",
+];
 
 // uid -> { start: Date, channelId: string, channelName: string, sessionDbId: number }
 const activeSessions = new Map();
 
-// Comma-separated bot nicknames to skip tracking
-const DEFAULT_IGNORED_NICKNAMES =
-  "UC Stats Bot,serveradmin,UC Music Bot,Admonus";
+// Required exclusions cannot be removed by a custom BOT_NICKNAMES value.
+const REQUIRED_IGNORED_NICKNAMES = [
+  "UC Stats Bot",
+  process.env.TS3_BOT_NICKNAME || "",
+  "serveradmin",
+  "UC Music Bot",
+  "Admonus",
+];
 
-const BOT_NICKNAMES = (process.env.BOT_NICKNAMES || DEFAULT_IGNORED_NICKNAMES)
-  .split(",")
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
+const BOT_NICKNAMES = [
+  ...new Set(
+    [
+      ...REQUIRED_IGNORED_NICKNAMES,
+      ...(process.env.BOT_NICKNAMES || "").split(","),
+    ]
+      .map((name) => name.trim().toLowerCase())
+      .filter(Boolean),
+  ),
+];
 
 // Comma-separated channel IDs to never track
 const EXCLUDED_CHANNELS = (process.env.EXCLUDED_CHANNELS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+
+function normalizeOttoMultiplier(value) {
+  const multiplier = Number(value);
+  if (
+    !Number.isFinite(multiplier) ||
+    multiplier < MIN_OTTO_MULTIPLIER ||
+    multiplier > MAX_OTTO_MULTIPLIER
+  ) {
+    throw new RangeError(
+      `Otto multiplier must be between ${MIN_OTTO_MULTIPLIER} and ${MAX_OTTO_MULTIPLIER}.`,
+    );
+  }
+  return Math.round(multiplier * 100) / 100;
+}
+
+async function getOttoMultiplier() {
+  const row = await db.getAsync("SELECT value FROM app_meta WHERE key = ?", [
+    OTTO_MULTIPLIER_META_KEY,
+  ]);
+  if (!row || row.value === undefined || row.value === null) {
+    return DEFAULT_OTTO_MULTIPLIER;
+  }
+  try {
+    return normalizeOttoMultiplier(row.value);
+  } catch {
+    return DEFAULT_OTTO_MULTIPLIER;
+  }
+}
+
+async function setOttoMultiplier(value) {
+  const multiplier = normalizeOttoMultiplier(value);
+  await db.runAsync(
+    `INSERT INTO app_meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    [OTTO_MULTIPLIER_META_KEY, String(multiplier)],
+  );
+  return multiplier;
+}
+
+function normalizeTrackedHours(values) {
+  const normalized = {};
+  for (const field of TRACKED_HOUR_FIELDS) {
+    const hours = Number(values && values[field]);
+    if (!Number.isFinite(hours) || hours < 0 || hours > 1_000_000) {
+      throw new RangeError(
+        "Tracked hours must be numbers between 0 and 1,000,000.",
+      );
+    }
+    normalized[field] = Math.round(hours * 1_000_000) / 1_000_000;
+  }
+
+  for (const field of TRACKED_HOUR_FIELDS.slice(1)) {
+    if (normalized[field] > normalized.total_time) {
+      throw new RangeError("Period hours cannot exceed all-time hours.");
+    }
+  }
+  return normalized;
+}
+
+async function setUserTrackedHours(uid, values) {
+  const user = await db.getAsync(
+    "SELECT uid, username FROM users WHERE uid = ?",
+    [uid],
+  );
+  if (!user) return null;
+
+  const hours = normalizeTrackedHours(values);
+  await db.runAsync(
+    `UPDATE users SET
+       total_time = ?, daily_time = ?, weekly_time = ?, monthly_time = ?
+     WHERE uid = ?`,
+    [
+      hours.total_time,
+      hours.daily_time,
+      hours.weekly_time,
+      hours.monthly_time,
+      uid,
+    ],
+  );
+  return { ...user, ...hours };
+}
 
 // ---------------------------------------------------------------------------
 function isIgnoredNickname(nickname) {
@@ -149,7 +261,7 @@ async function evaluateAway(client) {
   const now = new Date();
 
   // away is sometimes boolean, sometimes 0/1
-  const awayActive = client.away === true || client.away === 1;
+  const awayActive = client.away === true || String(client.away) === "1";
 
   if (!awayActive) {
     // They are back -- clear away state (handled by caller)
@@ -176,11 +288,52 @@ async function evaluateAway(client) {
   return { earnTime: true, isAway: true, awaySince: row.away_since };
 }
 
+async function closeSessionRecord(session, now) {
+  if (!session || !session.sessionDbId) return;
+  const durationHours = (now - session.start) / 3_600_000;
+  await db.runAsync(
+    "UPDATE sessions SET session_end = ?, duration_hours = ? WHERE id = ?",
+    [now.toISOString(), durationHours, session.sessionDbId],
+  );
+}
+
+async function openTrackedSession(
+  uid,
+  username,
+  channelId,
+  channelName,
+  now,
+) {
+  const result = await db.runAsync(
+    `INSERT INTO sessions (uid, username, channel_id, channel_name, session_start)
+     VALUES (?, ?, ?, ?, ?)`,
+    [uid, username, channelId, channelName, now.toISOString()],
+  );
+  const session = {
+    start: now,
+    channelId,
+    channelName,
+    sessionDbId: result.lastID,
+    blacklisted: false,
+  };
+  activeSessions.set(uid, session);
+  await logEvent(uid, username, "join", channelId, channelName, now);
+  return session;
+}
+
 // ---------------------------------------------------------------------------
 // processClientTick -- called every poll interval for each visible client
 // ---------------------------------------------------------------------------
 async function processClientTick(client, channelMap) {
-  if (!shouldTrackClient(client)) return false;
+  if (!shouldTrackClient(client)) {
+    if (client.uniqueIdentifier && isIgnoredNickname(client.nickname)) {
+      const removed = await resetUserTrackingData(client.uniqueIdentifier);
+      if (removed) {
+        console.log(`[Tracker] Purged ignored user ${removed.username}.`);
+      }
+    }
+    return false;
+  }
 
   const uid = client.uniqueIdentifier;
   const username = client.nickname;
@@ -189,7 +342,11 @@ async function processClientTick(client, channelMap) {
   const channelName = channelMap[channelId] || "Channel " + channelId;
   const now = new Date();
   const existingUser = await db.getAsync(
-    "SELECT username, last_update, is_online FROM users WHERE uid = ?",
+    `SELECT u.username, u.last_update, u.is_online,
+            CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+       FROM users u
+       LEFT JOIN user_blacklist b ON b.uid = u.uid
+      WHERE u.uid = ?`,
     [uid],
   );
   const previousUpdateMs = existingUser
@@ -249,38 +406,64 @@ async function processClientTick(client, channelMap) {
     );
   }
 
+  const isBlacklisted = Boolean(existingUser && existingUser.is_blacklisted);
+  let session = activeSessions.get(uid);
+
+  if (isBlacklisted) {
+    if (session && !session.blacklisted) {
+      await closeSessionRecord(session, now);
+      await db.runAsync(
+        "UPDATE users SET session_count = session_count + 1 WHERE uid = ?",
+        [uid],
+      );
+    }
+
+    if (!session) {
+      session = {
+        start: now,
+        channelId,
+        channelName,
+        sessionDbId: null,
+        blacklisted: true,
+      };
+      activeSessions.set(uid, session);
+    } else {
+      session.channelId = channelId;
+      session.channelName = channelName;
+      session.sessionDbId = null;
+      session.blacklisted = true;
+    }
+    return true;
+  }
+
   let visitedChannel = false;
 
   // Session tracking
-  if (!activeSessions.has(uid)) {
-    // New session -- open a DB record
-    const result = await db.runAsync(
-      `INSERT INTO sessions (uid, username, channel_id, channel_name, session_start)
-       VALUES (?, ?, ?, ?, ?)`,
-      [uid, username, channelId, channelName, now.toISOString()],
-    );
-    activeSessions.set(uid, {
-      start: now,
+  if (!session || session.blacklisted) {
+    await openTrackedSession(
+      uid,
+      username,
       channelId,
       channelName,
-      sessionDbId: result.lastID,
-    });
-    await logEvent(uid, username, "join", channelId, channelName, now);
+      now,
+    );
     visitedChannel = true;
-  } else {
-    const sess = activeSessions.get(uid);
-    if (sess.channelId !== channelId) {
-      // User moved channels
-      await logEvent(uid, username, "move", channelId, channelName, now);
-      sess.channelId = channelId;
-      sess.channelName = channelName;
-      visitedChannel = true;
-    }
+  } else if (session.channelId !== channelId) {
+    // User moved channels
+    await logEvent(uid, username, "move", channelId, channelName, now);
+    session.channelId = channelId;
+    session.channelName = channelName;
+    visitedChannel = true;
   }
 
   const tickMult = uid === "Z9wyOb/tgzg6wd6TMA9fs36txK0=" ? 6.7 : 1;
   const tickTime = (elapsedMs / 3_600_000) * tickMult;
   const tickUnits = (elapsedMs / POLL_INTERVAL_MS) * tickMult;
+  const configuredMultiplier =
+    uid === OTTO_UID ? await getOttoMultiplier() : tickMult;
+  const multiplierAdjustment = configuredMultiplier / tickMult;
+  const creditedTickTime = tickTime * multiplierAdjustment;
+  const creditedTickUnits = tickUnits * multiplierAdjustment;
 
   if (earnTime) {
     // Accumulate time in all period buckets
@@ -291,7 +474,13 @@ async function processClientTick(client, channelMap) {
          weekly_time  = weekly_time  + ?,
          monthly_time = monthly_time + ?
        WHERE uid = ?`,
-      [tickTime, tickTime, tickTime, tickTime, uid],
+      [
+        creditedTickTime,
+        creditedTickTime,
+        creditedTickTime,
+        creditedTickTime,
+        uid,
+      ],
     );
 
     // Per-channel time
@@ -306,26 +495,32 @@ async function processClientTick(client, channelMap) {
         uid,
         channelId,
         channelName,
-        tickTime,
+        creditedTickTime,
         visitedChannel ? 1 : 0,
-        tickTime,
+        creditedTickTime,
         visitedChannel ? 1 : 0,
       ],
     );
 
-    if (tickUnits > 0) {
+    if (creditedTickUnits > 0) {
       await db.runAsync(
         `INSERT INTO hourly_activity (uid, hour_of_day, day_of_week, ticks)
          VALUES (?, ?, ?, ?)
          ON CONFLICT(uid, hour_of_day, day_of_week) DO UPDATE SET ticks = ticks + ?`,
-        [uid, now.getHours(), now.getDay(), tickUnits, tickUnits],
+        [
+          uid,
+          now.getHours(),
+          now.getDay(),
+          creditedTickUnits,
+          creditedTickUnits,
+        ],
       );
     }
   } else {
     // Accumulate AFK time separately
     await db.runAsync(
       "UPDATE users SET afk_time = afk_time + ? WHERE uid = ?",
-      [tickTime, uid],
+      [creditedTickTime, uid],
     );
   }
 
@@ -404,23 +599,20 @@ async function reconcileOfflineClients(currentClients) {
 async function handleClientLeft(uid, username) {
   const now = new Date();
   const sess = activeSessions.get(uid);
+  const countedSession = Boolean(sess && !sess.blacklisted);
 
   if (sess) {
-    const durationHours = (now - sess.start) / 3_600_000;
-    if (sess.sessionDbId) {
-      await db.runAsync(
-        "UPDATE sessions SET session_end = ?, duration_hours = ? WHERE id = ?",
-        [now.toISOString(), durationHours, sess.sessionDbId],
+    if (!sess.blacklisted) {
+      await closeSessionRecord(sess, now);
+      await logEvent(
+        uid,
+        username,
+        "leave",
+        sess.channelId,
+        sess.channelName,
+        now,
       );
     }
-    await logEvent(
-      uid,
-      username,
-      "leave",
-      sess.channelId,
-      sess.channelName,
-      now,
-    );
     activeSessions.delete(uid);
   }
 
@@ -431,9 +623,9 @@ async function handleClientLeft(uid, username) {
        away_since  = NULL,
        muted_since = NULL,
        last_seen   = ?,
-       session_count = session_count + 1
+       session_count = session_count + ?
      WHERE uid = ?`,
-    [now.toISOString(), uid],
+    [now.toISOString(), countedSession ? 1 : 0, uid],
   );
 }
 
@@ -520,6 +712,57 @@ async function resetAllTrackingData() {
   return counts || { users: 0, sessions: 0, events: 0 };
 }
 
+async function setUserBlacklisted(uid, blacklisted) {
+  const user = await db.getAsync(
+    `SELECT u.uid, u.username,
+            CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+       FROM users u
+       LEFT JOIN user_blacklist b ON b.uid = u.uid
+      WHERE u.uid = ?`,
+    [uid],
+  );
+  if (!user) return null;
+
+  const nextValue = Boolean(blacklisted);
+  const currentValue = Boolean(user.is_blacklisted);
+  if (nextValue === currentValue) {
+    return { ...user, is_blacklisted: nextValue ? 1 : 0 };
+  }
+
+  const session = activeSessions.get(uid);
+  const now = new Date();
+
+  if (nextValue) {
+    await db.runAsync(
+      `INSERT INTO user_blacklist (uid, created_at) VALUES (?, ?)
+       ON CONFLICT(uid) DO NOTHING`,
+      [uid, now.toISOString()],
+    );
+    if (session && !session.blacklisted) {
+      await closeSessionRecord(session, now);
+      await db.runAsync(
+        "UPDATE users SET session_count = session_count + 1 WHERE uid = ?",
+        [uid],
+      );
+      session.sessionDbId = null;
+      session.blacklisted = true;
+    }
+  } else {
+    await db.runAsync("DELETE FROM user_blacklist WHERE uid = ?", [uid]);
+    if (session && session.blacklisted) {
+      await openTrackedSession(
+        uid,
+        user.username,
+        session.channelId,
+        session.channelName,
+        now,
+      );
+    }
+  }
+
+  return { ...user, is_blacklisted: nextValue ? 1 : 0 };
+}
+
 function getActiveSessions() {
   return activeSessions;
 }
@@ -536,4 +779,10 @@ module.exports = {
   purgeIgnoredUsers,
   resetUserTrackingData,
   resetAllTrackingData,
+  setUserBlacklisted,
+  getOttoMultiplier,
+  setOttoMultiplier,
+  setUserTrackedHours,
+  OTTO_UID,
+  DEFAULT_OTTO_MULTIPLIER,
 };

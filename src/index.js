@@ -15,7 +15,10 @@ const path = require("path");
 
 const db = require("./database");
 const { TeamSpeakAdminAuth } = require("./admin-auth");
-const { createDiscordReporter } = require("./discord");
+const {
+  createDiscordReporter,
+  validatePublicDashboardUrl,
+} = require("./discord");
 const {
   processClientTick,
   reconcileOfflineClients,
@@ -27,6 +30,11 @@ const {
   purgeIgnoredUsers,
   resetUserTrackingData,
   resetAllTrackingData,
+  setUserBlacklisted,
+  getOttoMultiplier,
+  setOttoMultiplier,
+  setUserTrackedHours,
+  OTTO_UID,
 } = require("./tracker");
 
 // ---------------------------------------------------------------------------
@@ -89,6 +97,19 @@ const HOST_ADMIN_PORT = parsePositiveInt(
   process.env.HOST_ADMIN_PORT,
   ADMIN_PORT,
 );
+function resolvePublicDashboardUrl(value) {
+  const fallback = "https://uct.aquaweb.cc/";
+  try {
+    return validatePublicDashboardUrl(value || fallback) || fallback;
+  } catch (error) {
+    console.error(`[Config] ${error.message} Using ${fallback} instead.`);
+    return fallback;
+  }
+}
+
+const PUBLIC_DASHBOARD_URL = resolvePublicDashboardUrl(
+  String(process.env.PUBLIC_DASHBOARD_URL || "").trim(),
+);
 const TS3_CONNECT_TIMEOUT_MS = parsePositiveInt(
   process.env.TS3_CONNECT_TIMEOUT_MS,
   10_000,
@@ -105,11 +126,13 @@ let maintenanceQueue = Promise.resolve();
 
 const adminAuth = new TeamSpeakAdminAuth({
   adminGroupIds: process.env.TS3_ADMIN_GROUP_IDS || "6",
+  restrictedUsers: { [OTTO_UID]: "otto" },
 });
 const discordReporter = createDiscordReporter({
   db,
   webhookUrl: process.env.DISCORD_WEBHOOK_URL,
   intervalMinutes: process.env.DISCORD_REPORT_INTERVAL_MINUTES,
+  dashboardUrl: PUBLIC_DASHBOARD_URL,
 });
 
 function checkTcpReachable(host, port, timeoutMs) {
@@ -129,7 +152,7 @@ function checkTcpReachable(host, port, timeoutMs) {
       done(
         new Error(
           `Timed out opening TCP ${host}:${port} after ${timeoutMs}ms. ` +
-            "Check that this is the TeamSpeak ServerQuery TCP port and that the tunnel/firewall allows TCP.",
+            "Check that this is the TeamSpeak ServerQuery TCP port and that the network/firewall allows TCP.",
         ),
       );
     });
@@ -222,14 +245,50 @@ function getRemoteAdminSession(req) {
   return adminAuth.getSession(getCookie(req, ADMIN_COOKIE));
 }
 
+function permissionsForRole(role) {
+  return {
+    manage_users: role === "admin",
+    manage_multiplier: role === "admin" || role === "otto",
+  };
+}
+
 function requireRemoteAdmin(req, res, next) {
   const session = getRemoteAdminSession(req);
   if (!session) {
     return res.status(401).json({ error: "Server Admin verification required" });
   }
+  if (session.role !== "admin") {
+    return res.status(403).json({ error: "Full Server Admin access required" });
+  }
   res.locals.adminActor = `TeamSpeak admin ${session.username} (${session.uid})`;
   res.locals.adminSession = session;
   next();
+}
+
+function requireRemoteMultiplierAccess(req, res, next) {
+  const session = getRemoteAdminSession(req);
+  if (!session) {
+    return res.status(401).json({ error: "TeamSpeak identity verification required" });
+  }
+  if (!permissionsForRole(session.role).manage_multiplier) {
+    return res.status(403).json({ error: "Multiplier access required" });
+  }
+  res.locals.adminActor =
+    session.role === "otto"
+      ? `Otto ${session.username} (${session.uid})`
+      : `TeamSpeak admin ${session.username} (${session.uid})`;
+  res.locals.adminSession = session;
+  next();
+}
+
+async function listBlacklistedUsers() {
+  const users = await db.allAsync(
+    `SELECT u.uid, u.username, u.is_online, u.is_afk, u.last_seen
+       FROM user_blacklist b
+       JOIN users u ON u.uid = b.uid
+      ORDER BY lower(u.username), u.uid`,
+  );
+  return users || [];
 }
 
 app.get("/api/config", (_req, res) => {
@@ -237,6 +296,7 @@ app.get("/api/config", (_req, res) => {
     admin_port: HOST_ADMIN_PORT,
     discord_configured: discordReporter.configured,
     remote_admin_available: true,
+    public_dashboard_url: PUBLIC_DASHBOARD_URL,
   });
 });
 
@@ -244,14 +304,26 @@ app.get(
   "/api/admin/status",
   asyncRoute(async (req, res) => {
     const session = getRemoteAdminSession(req);
+    const fullAdmin = session && session.role === "admin";
+    const [discord, blacklistedUsers, ottoMultiplier] = session
+      ? await Promise.all([
+          fullAdmin
+            ? discordReporter.getStatus()
+            : { configured: discordReporter.configured },
+          fullAdmin ? listBlacklistedUsers() : [],
+          getOttoMultiplier(),
+        ])
+      : [{ configured: discordReporter.configured }, [], null];
     res.json({
       authorized: Boolean(session),
       mode: session ? "teamspeak" : null,
       username: session ? session.username : null,
+      role: session ? session.role : null,
+      permissions: permissionsForRole(session ? session.role : null),
       ts3_connected: isConnected,
-      discord: session
-        ? await discordReporter.getStatus()
-        : { configured: discordReporter.configured },
+      discord,
+      blacklisted_users: blacklistedUsers,
+      otto_multiplier: ottoMultiplier,
     });
   }),
 );
@@ -283,6 +355,8 @@ app.post(
       authorized: true,
       mode: "teamspeak",
       username: result.username,
+      role: result.role,
+      permissions: permissionsForRole(result.role),
       expires_at: result.expiresAt,
     });
   }),
@@ -322,6 +396,70 @@ async function resetAllHandler(req, res) {
   res.json({ ok: true, deleted });
 }
 
+async function blacklistUserHandler(req, res) {
+  const uid = String(req.params.uid || "");
+  if (
+    !uid ||
+    req.body.uid !== uid ||
+    typeof req.body.blacklisted !== "boolean"
+  ) {
+    return res.status(400).json({ error: "User and blacklist state are required." });
+  }
+
+  const user = await runTrackingMaintenance(() =>
+    setUserBlacklisted(uid, req.body.blacklisted),
+  );
+  if (!user) return res.status(404).json({ error: "User not found." });
+
+  const action = req.body.blacklisted ? "blacklisted" : "unblacklisted";
+  console.log(
+    `[Admin] ${res.locals.adminActor || "Local host"} ${action} ${user.username} (${uid}).`,
+  );
+  res.json({ ok: true, user });
+}
+
+async function editUserHoursHandler(req, res) {
+  const uid = String(req.params.uid || "");
+  if (!uid || req.body.uid !== uid || !req.body.hours) {
+    return res.status(400).json({ error: "User and tracked hours are required." });
+  }
+
+  let user;
+  try {
+    user = await runTrackingMaintenance(() =>
+      setUserTrackedHours(uid, req.body.hours),
+    );
+  } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ error: error.message });
+    }
+    throw error;
+  }
+  if (!user) return res.status(404).json({ error: "User not found." });
+
+  console.log(
+    `[Admin] ${res.locals.adminActor || "Local host"} edited tracked hours for ${user.username} (${uid}).`,
+  );
+  res.json({ ok: true, user });
+}
+
+async function setOttoMultiplierHandler(req, res) {
+  let multiplier;
+  try {
+    multiplier = await setOttoMultiplier(req.body.multiplier);
+  } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ error: error.message });
+    }
+    throw error;
+  }
+
+  console.log(
+    `[Admin] ${res.locals.adminActor || "Local host"} set Otto's multiplier to ${multiplier}x.`,
+  );
+  res.json({ ok: true, multiplier });
+}
+
 async function sendDiscordHandler(_req, res) {
   if (!discordReporter.configured) {
     return res.status(400).json({ error: "Discord webhook is not configured." });
@@ -338,6 +476,24 @@ app.delete(
   requireSameOriginJson,
   requireRemoteAdmin,
   asyncRoute(resetUserHandler),
+);
+app.post(
+  "/api/admin/users/:uid/blacklist",
+  requireSameOriginJson,
+  requireRemoteAdmin,
+  asyncRoute(blacklistUserHandler),
+);
+app.patch(
+  "/api/admin/users/:uid/hours",
+  requireSameOriginJson,
+  requireRemoteAdmin,
+  asyncRoute(editUserHoursHandler),
+);
+app.patch(
+  "/api/admin/otto-multiplier",
+  requireSameOriginJson,
+  requireRemoteMultiplierAccess,
+  asyncRoute(setOttoMultiplierHandler),
 );
 app.delete(
   "/api/admin/data",
@@ -356,11 +512,15 @@ app.post(
 app.get("/api/leaderboard", async (_req, res) => {
   try {
     const rows = await db.allAsync(
-      `SELECT uid, username, total_time, daily_time, weekly_time,
-              monthly_time, afk_time, session_count, last_seen, is_online, is_afk
-       FROM users
-       WHERE total_time > 0 OR is_online = 1
-       ORDER BY total_time DESC LIMIT 50`,
+      `SELECT u.uid, u.username, u.total_time, u.daily_time, u.weekly_time,
+              u.monthly_time, u.afk_time, u.session_count, u.last_seen,
+              u.is_online, u.is_afk,
+              CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+         FROM users u
+         LEFT JOIN user_blacklist b ON b.uid = u.uid
+        WHERE u.total_time > 0 OR u.is_online = 1 OR b.uid IS NOT NULL
+        ORDER BY is_blacklisted ASC, u.total_time DESC
+        LIMIT 50`,
     );
     res.json(rows || []);
   } catch (e) {
@@ -373,7 +533,14 @@ app.get("/api/leaderboard", async (_req, res) => {
 app.get("/api/user/:uid", async (req, res) => {
   try {
     const uid = req.params.uid;
-    const user = await db.getAsync("SELECT * FROM users WHERE uid = ?", [uid]);
+    const user = await db.getAsync(
+      `SELECT u.*,
+              CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+         FROM users u
+         LEFT JOIN user_blacklist b ON b.uid = u.uid
+        WHERE u.uid = ?`,
+      [uid],
+    );
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const channels = await db.allAsync(
@@ -395,8 +562,14 @@ app.get("/api/user/:uid", async (req, res) => {
       [uid],
     );
     const rankRow = await db.getAsync(
-      "SELECT COUNT(*) AS r FROM users WHERE total_time > ?",
-      [user.total_time],
+      `SELECT COUNT(*) AS r
+         FROM users u
+         LEFT JOIN user_blacklist b ON b.uid = u.uid
+        WHERE (u.total_time > 0 OR u.is_online = 1 OR b.uid IS NOT NULL)
+          AND ((CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END) < ?
+            OR ((CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END) = ?
+                AND u.total_time > ?))`,
+      [user.is_blacklisted, user.is_blacklisted, user.total_time],
     );
 
     res.json({
@@ -420,12 +593,20 @@ app.get("/api/online", async (_req, res) => {
     const result = [];
     for (const [uid, sess] of sessions) {
       const row = await db
-        .getAsync("SELECT username, is_afk FROM users WHERE uid = ?", [uid])
+        .getAsync(
+          `SELECT u.username, u.is_afk,
+                  CASE WHEN b.uid IS NULL THEN 0 ELSE 1 END AS is_blacklisted
+             FROM users u
+             LEFT JOIN user_blacklist b ON b.uid = u.uid
+            WHERE u.uid = ?`,
+          [uid],
+        )
         .catch(() => null);
       result.push({
         uid,
         username: row && row.username ? row.username : uid,
         is_afk: row && row.is_afk ? row.is_afk : 0,
+        is_blacklisted: row && row.is_blacklisted ? 1 : 0,
         sessionHours: (now - sess.start.getTime()) / 3_600_000,
         channel: sess.channelName || "",
       });
@@ -522,7 +703,10 @@ localAdminApp.use((req, res, next) => {
   if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PATCH, DELETE, OPTIONS",
+    );
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   }
 
@@ -542,12 +726,21 @@ function requireLocalJson(req, res, next) {
 localAdminApp.get(
   "/api/admin/status",
   asyncRoute(async (_req, res) => {
+    const [discord, blacklistedUsers, ottoMultiplier] = await Promise.all([
+      discordReporter.getStatus(),
+      listBlacklistedUsers(),
+      getOttoMultiplier(),
+    ]);
     res.json({
       authorized: true,
       mode: "local",
       username: "Local host",
+      role: "admin",
+      permissions: permissionsForRole("admin"),
       ts3_connected: isConnected,
-      discord: await discordReporter.getStatus(),
+      discord,
+      blacklisted_users: blacklistedUsers,
+      otto_multiplier: ottoMultiplier,
     });
   }),
 );
@@ -555,6 +748,21 @@ localAdminApp.delete(
   "/api/admin/users/:uid",
   requireLocalJson,
   asyncRoute(resetUserHandler),
+);
+localAdminApp.post(
+  "/api/admin/users/:uid/blacklist",
+  requireLocalJson,
+  asyncRoute(blacklistUserHandler),
+);
+localAdminApp.patch(
+  "/api/admin/users/:uid/hours",
+  requireLocalJson,
+  asyncRoute(editUserHoursHandler),
+);
+localAdminApp.patch(
+  "/api/admin/otto-multiplier",
+  requireLocalJson,
+  asyncRoute(setOttoMultiplierHandler),
 );
 localAdminApp.delete(
   "/api/admin/data",
@@ -787,6 +995,7 @@ console.log(
   `   Virtual server: sid=${TS3_SERVER_ID}, voice_port=${TS3_SERVER_PORT}`,
 );
 console.log(`   Web Dashboard : http://localhost:${WEB_PORT}`);
+console.log(`   Public URL    : ${PUBLIC_DASHBOARD_URL}`);
 console.log(`   Local Admin   : http://127.0.0.1:${HOST_ADMIN_PORT}`);
 console.log(
   `   Discord      : ${discordReporter.configured ? `every ${discordReporter.intervalMinutes}m` : "not configured"}`,

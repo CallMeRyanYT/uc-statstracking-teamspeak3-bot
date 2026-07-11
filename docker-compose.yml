@@ -25,6 +25,7 @@ services:
       - POLL_INTERVAL_MS=${POLL_INTERVAL_MS:-60000}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - DISCORD_REPORT_INTERVAL_MINUTES=${DISCORD_REPORT_INTERVAL_MINUTES:-60}
+      - PUBLIC_DASHBOARD_URL=${PUBLIC_DASHBOARD_URL:-https://uct.aquaweb.cc/}
       - WEB_PORT=${WEB_PORT:-3000}
       - HOST_WEB_PORT=${HOST_WEB_PORT:-3000}
       - ADMIN_PORT=${ADMIN_PORT:-3001}
@@ -41,16 +42,6 @@ services:
     extra_hosts:
       # Allows Docker to reach services running on the Windows host.
       - "host.docker.internal:host-gateway"
-
-  # Optional Cloudflare Tunnel for a public dashboard URL without port forwarding.
-  # The quick tunnel URL is printed with: docker logs uc-stats-tunnel
-  cloudflare-tunnel:
-    image: cloudflare/cloudflared:latest
-    container_name: uc-stats-tunnel
-    restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://uc-stats-bot:${WEB_PORT:-3000}
-    depends_on:
-      - uc-stats-bot
 
 volumes:
   stats_data:
