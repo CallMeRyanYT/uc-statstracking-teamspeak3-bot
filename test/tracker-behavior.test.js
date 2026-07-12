@@ -220,29 +220,26 @@ test("persists only bounded Otto multipliers", async () => {
   await assert.rejects(() => setOttoMultiplier(101), /between 0.1 and 100/);
 });
 
-test("validates and updates all editable leaderboard hour counters", async () => {
+test("sets every leaderboard period from whole hours and minutes", async () => {
   scenario = "edit_hours";
   const writeStart = writes.length;
   const result = await setUserTrackedHours("edited-user-uid", {
-    total_time: 12.5,
-    daily_time: 1.25,
-    weekly_time: 4,
-    monthly_time: 8,
+    hours: 12,
+    minutes: 30,
   });
   const hourWrite = writes.slice(writeStart).find(({ sql }) =>
     sql.includes("UPDATE users SET") && sql.includes("total_time = ?"),
   );
 
   assert.equal(result.total_time, 12.5);
-  assert.deepEqual(hourWrite.params, [12.5, 1.25, 4, 8, "edited-user-uid"]);
+  assert.equal(result.daily_time, 12.5);
+  assert.deepEqual(hourWrite.params, [12.5, 12.5, 12.5, 12.5, "edited-user-uid"]);
   await assert.rejects(
     () =>
       setUserTrackedHours("edited-user-uid", {
-        total_time: 1,
-        daily_time: 2,
-        weekly_time: 0,
-        monthly_time: 0,
+        hours: 1,
+        minutes: 60,
       }),
-    /cannot exceed all-time/,
+    /minutes must be from 0 to 59/,
   );
 });

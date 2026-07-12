@@ -35,12 +35,6 @@ const DEFAULT_OTTO_MULTIPLIER = 2;
 const MIN_OTTO_MULTIPLIER = 0.1;
 const MAX_OTTO_MULTIPLIER = 100;
 const OTTO_MULTIPLIER_META_KEY = "otto_hours_multiplier";
-const TRACKED_HOUR_FIELDS = [
-  "total_time",
-  "daily_time",
-  "weekly_time",
-  "monthly_time",
-];
 
 // uid -> { start: Date, channelId: string, channelName: string, sessionDbId: number }
 const activeSessions = new Map();
@@ -109,47 +103,46 @@ async function setOttoMultiplier(value) {
   return multiplier;
 }
 
-function normalizeTrackedHours(values) {
-  const normalized = {};
-  for (const field of TRACKED_HOUR_FIELDS) {
-    const hours = Number(values && values[field]);
-    if (!Number.isFinite(hours) || hours < 0 || hours > 1_000_000) {
-      throw new RangeError(
-        "Tracked hours must be numbers between 0 and 1,000,000.",
-      );
-    }
-    normalized[field] = Math.round(hours * 1_000_000) / 1_000_000;
+function normalizeTrackedDuration(value) {
+  const wholeHours = Number(value && value.hours);
+  const minutes = Number(value && value.minutes);
+  if (
+    !Number.isInteger(wholeHours) ||
+    wholeHours < 0 ||
+    wholeHours > 1_000_000 ||
+    !Number.isInteger(minutes) ||
+    minutes < 0 ||
+    minutes > 59 ||
+    (wholeHours === 1_000_000 && minutes !== 0)
+  ) {
+    throw new RangeError(
+      "Hours must be a whole number from 0 to 1,000,000 and minutes must be from 0 to 59.",
+    );
   }
-
-  for (const field of TRACKED_HOUR_FIELDS.slice(1)) {
-    if (normalized[field] > normalized.total_time) {
-      throw new RangeError("Period hours cannot exceed all-time hours.");
-    }
-  }
-  return normalized;
+  return (wholeHours * 60 + minutes) / 60;
 }
 
-async function setUserTrackedHours(uid, values) {
+async function setUserTrackedHours(uid, duration) {
   const user = await db.getAsync(
     "SELECT uid, username FROM users WHERE uid = ?",
     [uid],
   );
   if (!user) return null;
 
-  const hours = normalizeTrackedHours(values);
+  const totalHours = normalizeTrackedDuration(duration);
   await db.runAsync(
     `UPDATE users SET
        total_time = ?, daily_time = ?, weekly_time = ?, monthly_time = ?
      WHERE uid = ?`,
-    [
-      hours.total_time,
-      hours.daily_time,
-      hours.weekly_time,
-      hours.monthly_time,
-      uid,
-    ],
+    [totalHours, totalHours, totalHours, totalHours, uid],
   );
-  return { ...user, ...hours };
+  return {
+    ...user,
+    total_time: totalHours,
+    daily_time: totalHours,
+    weekly_time: totalHours,
+    monthly_time: totalHours,
+  };
 }
 
 // ---------------------------------------------------------------------------

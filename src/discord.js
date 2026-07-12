@@ -1,4 +1,5 @@
 const META_LAST_SENT = "discord_last_report_at";
+const META_LAST_MESSAGE_ID = "discord_last_report_message_id";
 const DEFAULT_INTERVAL_MINUTES = 60;
 const MIN_INTERVAL_MINUTES = 5;
 const WEBHOOK_TIMEOUT_MS = 10_000;
@@ -229,6 +230,55 @@ function createDiscordReporter(options) {
     );
   }
 
+  async function getLastMessageId() {
+    const row = await db.getAsync("SELECT value FROM app_meta WHERE key = ?", [
+      META_LAST_MESSAGE_ID,
+    ]);
+    return row && /^\d+$/.test(String(row.value || ""))
+      ? String(row.value)
+      : null;
+  }
+
+  async function setLastMessageId(value) {
+    await db.runAsync(
+      `INSERT INTO app_meta (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      [META_LAST_MESSAGE_ID, value],
+    );
+  }
+
+  async function deletePreviousMessage(messageId) {
+    const endpoint = new URL(webhookUrl);
+    endpoint.search = "";
+    endpoint.hash = "";
+    endpoint.pathname =
+      `${endpoint.pathname.replace(/\/$/, "")}/messages/${messageId}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+    try {
+      const response = await fetchImpl(endpoint, {
+        method: "DELETE",
+        signal: controller.signal,
+      });
+      if (response.ok || response.status === 404) return true;
+      const detail = (await response.text().catch(() => "")).slice(0, 300);
+      logger.error(
+        `[Discord] Could not delete previous report (HTTP ${response.status}${detail ? `: ${detail}` : ""}).`,
+      );
+      return false;
+    } catch (error) {
+      const message =
+        error && error.name === "AbortError"
+          ? "timed out after 10 seconds"
+          : error.message;
+      logger.error(`[Discord] Could not delete previous report: ${message}.`);
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async function performSend() {
     if (configError) throw configError;
     if (!webhookUrl) throw new Error("Discord webhook is not configured.");
@@ -244,6 +294,7 @@ function createDiscordReporter(options) {
     });
     const endpoint = new URL(webhookUrl);
     endpoint.searchParams.set("wait", "true");
+    const previousMessageId = await getLastMessageId();
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
@@ -261,11 +312,35 @@ function createDiscordReporter(options) {
         );
       }
 
+      const responseBody = await response.text().catch(() => "");
+      let messageId = null;
+      try {
+        const message = JSON.parse(responseBody);
+        if (/^\d+$/.test(String(message.id || ""))) {
+          messageId = String(message.id);
+        }
+      } catch {
+        // A successful Discord wait=true response should be JSON. Keep the
+        // report successful even if a proxy strips the response body.
+      }
+
+      let deletedPrevious = false;
+      if (messageId) {
+        if (previousMessageId && previousMessageId !== messageId) {
+          deletedPrevious = await deletePreviousMessage(previousMessageId);
+        }
+        await setLastMessageId(messageId);
+      } else {
+        logger.error(
+          "[Discord] Report sent, but Discord returned no message ID; the previous report was kept.",
+        );
+      }
+
       const sentAt = new Date().toISOString();
       await setLastSentAt(sentAt);
       lastError = null;
       logger.log(`[Discord] Statistics report sent (${snapshot.leaderboard.length} ranked users).`);
-      return { sent: true, sentAt };
+      return { sent: true, sentAt, messageId, deletedPrevious };
     } catch (error) {
       const normalized =
         error && error.name === "AbortError"

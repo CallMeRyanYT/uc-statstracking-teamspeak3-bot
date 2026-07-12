@@ -13,7 +13,7 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 | Persistent data | SQLite database in the Docker volume |
 | AFK handling | Pauses active time after the configured away threshold |
 | Period resets | Daily, weekly, and monthly counters reset automatically |
-| Discord reports | Posts totals, top users, top channels, and the public website on a schedule |
+| Discord reports | Posts scheduled statistics and replaces the previous webhook report |
 | Admin controls | Edit leaderboard hours, blacklist users, reset one user, or clear all tracked data |
 | Otto multiplier | Credits one permanent UID at a persistent configurable rate, defaulting to 2.0x |
 | Stable identities | Uses the permanent TeamSpeak client UID, not the temporary connection ID |
@@ -73,7 +73,7 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
    docker compose up -d --build --remove-orphans
    ```
 
-The first automatic report is sent when tracked data exists and a report is due. From the local dashboard, open **Manage** and use **Send now** to test it immediately.
+The first automatic report is sent when tracked data exists and a report is due. Each successful report stores its Discord message ID; the next successful report is posted first and then deletes the previous one. From the local dashboard, open **Manage** and use **Send now** to test it immediately.
 
 Treat the webhook URL like a password. If it is ever pasted into a public chat, delete or rotate it in Discord and update `.env`.
 
@@ -146,9 +146,11 @@ Set `TS3_ADMIN_GROUP_IDS` to the comma-separated IDs that should have access. `6
 
 Open a leaderboard profile and select **Blacklist user** to pause all future tracking for that permanent UID. A blacklisted user remains visible with their current Online, AFK, or Offline state, keeps their existing history, receives a **Blacklisted** badge, and is placed below tracked users. Removing the user from the blacklist starts a fresh tracked session if they are currently online. Resetting that user deletes both their history and blacklist entry.
 
-Full admins can also edit the all-time, daily, weekly, and monthly leaderboard counters from a user's profile. Values must be non-negative, period values cannot exceed all-time hours, and session/channel history is intentionally not rewritten.
+Full admins can edit a user's time with one whole-hours field and one minutes field. Saving applies that same duration to all-time, today, this week, and this month. Session and channel history is intentionally not rewritten.
 
 The permanent UID `Z9wyOb/tgzg6wd6TMA9fs36txK0=` has the restricted `otto` role. It can pass the server-group check after proving the UID with the same temporary nickname code, but it cannot edit users, blacklist or reset data, or send Discord reports. Its only write permission is the Otto multiplier. The restricted manager button appears only after Alex mode is activated; full admins can always inspect and change the multiplier. The default is `2.0x`, the accepted range is `0.1x` to `100x`, and changes persist in SQLite. Online session duration remains real elapsed time while leaderboard, channel, AFK, and heatmap credits use the multiplier for new ticks only.
+
+The manual **Refresh** button requests an immediate rate-limited TeamSpeak poll before reloading dashboard APIs. The footer age is derived from the server's last successful TeamSpeak poll, so it does not reset merely because the browser re-rendered cached data.
 
 ## Config Reference
 

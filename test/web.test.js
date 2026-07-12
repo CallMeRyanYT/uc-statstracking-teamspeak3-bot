@@ -24,6 +24,12 @@ test("dashboard includes blacklist controls and the refresh easter egg", () => {
   assert.match(html, /ALEX_TRIGGER_CLICKS = 5/);
   assert.match(html, /ALEX_REPEAT_MS = 10_000/);
   assert.match(html, /onclick="handleRefreshClick\(\)"/);
+  assert.match(html, /refreshAll\(\{ forcePoll: true \}\)/);
+  assert.match(html, /fetchJson\('\/api\/refresh'/);
+  assert.match(html, /fetch\(url, \{ cache: 'no-store', \.\.\.options \}\)/);
+  assert.match(html, /Date\.parse\(health\?\.last_poll\?\.at/);
+  assert.doesNotMatch(html, /lastRefreshAt = Date\.now\(\)/);
+  assert.doesNotMatch(html, /fetch\('\/api\/leaderboard'\)[\s\S]{0,80}?catch/);
   assert.match(html, /getElementById\('site-title'\)\.textContent = 'Alex Lazau'/);
   assert.match(html, /document\.title = 'Alex Lazau - TeamSpeak Activity Tracker'/);
   assert.match(html, /new Audio\('\/alex-lazau-spotted\.mp3'\)/);
@@ -34,6 +40,9 @@ test("dashboard includes blacklist controls and the refresh easter egg", () => {
   assert.match(html, /Tracking paused/);
   assert.match(html, /id="user-hours-editor"/);
   assert.match(html, /id="save-user-hours-btn"/);
+  assert.match(html, /id="edit-hours"/);
+  assert.match(html, /id="edit-minutes"/);
+  assert.doesNotMatch(html, /id="edit-daily-hours"/);
   assert.match(html, /id="otto-multiplier-input"/);
   assert.match(html, /adminState\.role === 'otto'/);
   assert.match(html, /!isAlexModeActive\(\)/);

@@ -1240,23 +1240,15 @@
       <div class="modal-grid" id="modal-grid"></div>
       <div class="user-hours-editor" id="user-hours-editor" hidden>
         <h3>Edit leaderboard hours</h3>
-        <p class="form-note">Updates this user's leaderboard counters. Session history and channel history remain unchanged.</p>
+        <p class="form-note">Sets the same time for all-time, today, this week, and this month. Session and channel history remain unchanged.</p>
         <div class="admin-field-grid">
           <label class="admin-field">
-            <span>All-time</span>
-            <div class="input-with-unit"><input class="admin-number-input" id="edit-total-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+            <span>Hours</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-hours" type="number" min="0" max="1000000" step="1" inputmode="numeric" /><span>h</span></div>
           </label>
           <label class="admin-field">
-            <span>Today</span>
-            <div class="input-with-unit"><input class="admin-number-input" id="edit-daily-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
-          </label>
-          <label class="admin-field">
-            <span>This week</span>
-            <div class="input-with-unit"><input class="admin-number-input" id="edit-weekly-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
-          </label>
-          <label class="admin-field">
-            <span>This month</span>
-            <div class="input-with-unit"><input class="admin-number-input" id="edit-monthly-hours" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" /><span>h</span></div>
+            <span>Minutes</span>
+            <div class="input-with-unit"><input class="admin-number-input" id="edit-minutes" type="number" min="0" max="59" step="1" inputmode="numeric" /><span>m</span></div>
           </label>
         </div>
         <div class="modal-actions">
@@ -1313,7 +1305,7 @@
   }
 
   async function fetchJson(url, options = {}) {
-    const response = await fetch(url, options);
+    const response = await fetch(url, { cache: 'no-store', ...options });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
     return data;
@@ -1406,7 +1398,7 @@
       refreshClickCount += 1;
       if (refreshClickCount >= ALEX_TRIGGER_CLICKS) activateAlexMode();
     }
-    return refreshAll();
+    return refreshAll({ forcePoll: true });
   }
 
   function setPublicSiteLink(rawUrl) {
@@ -1803,23 +1795,18 @@
     if (!currentModalUid || !canManageUsers()) return;
     const uid = currentModalUid;
     const username = currentModalName;
-    const fieldIds = {
-      total_time: 'edit-total-hours',
-      daily_time: 'edit-daily-hours',
-      weekly_time: 'edit-weekly-hours',
-      monthly_time: 'edit-monthly-hours',
-    };
-    const hours = {};
-    for (const [field, id] of Object.entries(fieldIds)) {
-      const value = Number(document.getElementById(id).value);
-      if (!Number.isFinite(value) || value < 0 || value > 1_000_000) {
-        showToast('Hours must be between 0 and 1,000,000.', true);
-        return;
-      }
-      hours[field] = value;
-    }
-    if ([hours.daily_time, hours.weekly_time, hours.monthly_time].some(value => value > hours.total_time)) {
-      showToast('Period hours cannot exceed all-time hours.', true);
+    const hours = Number(document.getElementById('edit-hours').value);
+    const minutes = Number(document.getElementById('edit-minutes').value);
+    if (
+      !Number.isInteger(hours) ||
+      hours < 0 ||
+      hours > 1_000_000 ||
+      !Number.isInteger(minutes) ||
+      minutes < 0 ||
+      minutes > 59 ||
+      (hours === 1_000_000 && minutes !== 0)
+    ) {
+      showToast('Use whole hours and minutes from 0 to 59.', true);
       return;
     }
 
@@ -1828,7 +1815,7 @@
     try {
       await adminFetch(`/api/admin/users/${encodeURIComponent(uid)}/hours`, {
         method: 'PATCH',
-        body: JSON.stringify({ uid, hours }),
+        body: JSON.stringify({ uid, hours, minutes }),
       });
       await refreshAll();
       await openModal(uid);
@@ -1863,12 +1850,12 @@
   // ── Fetch & Render ────────────────────────────────────────────────────────
   async function fetchAll() {
     const [lb, online, server, channels, activity, health] = await Promise.all([
-      fetch('/api/leaderboard').then(r=>r.json()).catch(()=>[]),
-      fetch('/api/online').then(r=>r.json()).catch(()=>[]),
-      fetch('/api/server').then(r=>r.json()).catch(()=>({})),
-      fetch('/api/channels').then(r=>r.json()).catch(()=>[]),
-      fetch('/api/activity').then(r=>r.json()).catch(()=>[]),
-      fetch('/api/health').then(r=>r.json()).catch(()=>({})),
+      fetchJson('/api/leaderboard'),
+      fetchJson('/api/online'),
+      fetchJson('/api/server'),
+      fetchJson('/api/channels'),
+      fetchJson('/api/activity'),
+      fetchJson('/api/health'),
     ]);
     hoursPerTick = (health.poll_interval_ms || 60000) / 3600000;
     allUsers = lb;
@@ -1877,6 +1864,7 @@
     renderServerStats(server, online, health);
     renderChannels(channels);
     renderActivity(activity);
+    return health;
   }
 
   function renderServerStats(s, online, health) {
@@ -2029,17 +2017,16 @@
       document.getElementById('modal-avatar').textContent = initials;
       document.getElementById('modal-name').textContent = data.username;
       document.getElementById('modal-badge').innerHTML = statusBadge(data);
-      const editableHours = [
-        ['edit-total-hours', data.total_time],
-        ['edit-daily-hours', data.daily_time],
-        ['edit-weekly-hours', data.weekly_time],
-        ['edit-monthly-hours', data.monthly_time],
-      ];
-      for (const [id, value] of editableHours) {
-        document.getElementById(id).value = String(
-          Math.round((Number(value) || 0) * 10_000) / 10_000,
-        );
-      }
+      const editableMinutes = Math.max(
+        0,
+        Math.round((Number(data.total_time) || 0) * 60),
+      );
+      document.getElementById('edit-hours').value = String(
+        Math.floor(editableMinutes / 60),
+      );
+      document.getElementById('edit-minutes').value = String(
+        editableMinutes % 60,
+      );
 
       // Stats grid
       const modalStats = [
@@ -2135,18 +2122,37 @@
       second: '2-digit',
     });
     const age = lastRefreshAt === null
-      ? 'waiting for data'
+      ? 'waiting for TeamSpeak sync'
       : `${Math.max(0, Math.floor((now.getTime() - lastRefreshAt) / 1000))}s ago`;
     document.getElementById('last-refresh-text').textContent =
       `Updated ${age} | Local time ${liveTime} | Refreshes every 30s`;
   }
 
-  async function refreshAll() {
+  async function refreshAll(options = {}) {
     const btn = document.getElementById('refresh-btn');
     btn.innerHTML = `${svgIcon('refresh')} Loading...`;
+    let pollError = null;
     try {
-      await fetchAll();
-      lastRefreshAt = Date.now();
+      if (options.forcePoll) {
+        try {
+          await fetchJson('/api/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+          });
+        } catch (error) {
+          pollError = error;
+        }
+      }
+
+      const health = await fetchAll();
+      const pollTime = Date.parse(health?.last_poll?.at || '');
+      lastRefreshAt = Number.isFinite(pollTime) ? pollTime : null;
+      if (pollError && !options.silent) showToast(pollError.message, true);
+      return !pollError;
+    } catch (error) {
+      if (!options.silent) showToast(error.message, true);
+      return false;
     } finally {
       btn.innerHTML = `${svgIcon('refresh')} Refresh`;
       updateRefreshInfo();
@@ -2154,13 +2160,13 @@
   }
 
   // Auto-refresh every 30 seconds
-  setInterval(refreshAll, 30_000);
+  setInterval(() => { void refreshAll({ silent: true }); }, 30_000);
   setInterval(updateRefreshInfo, 1_000);
 
   // Initial load
   updateRefreshInfo();
   initializeAdminAccess();
-  refreshAll();
+  void refreshAll();
 </script>
 </body>
 </html>

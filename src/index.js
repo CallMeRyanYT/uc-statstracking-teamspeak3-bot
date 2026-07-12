@@ -123,6 +123,8 @@ let lastPollStats = null;
 let lastPollLogKey = "";
 let pollPromise = null;
 let maintenanceQueue = Promise.resolve();
+let lastManualPollAt = 0;
+const MANUAL_POLL_COOLDOWN_MS = 3_000;
 
 const adminAuth = new TeamSpeakAdminAuth({
   adminGroupIds: process.env.TS3_ADMIN_GROUP_IDS || "6",
@@ -167,6 +169,10 @@ function checkTcpReachable(host, port, timeoutMs) {
 const app = express();
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "16kb" }));
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 app.use(express.static(path.join(__dirname, "../web")));
 
 const ADMIN_COOKIE = "uc_admin_session";
@@ -300,6 +306,33 @@ app.get("/api/config", (_req, res) => {
   });
 });
 
+app.post(
+  "/api/refresh",
+  requireSameOriginJson,
+  asyncRoute(async (_req, res) => {
+    if (!isConnected || !ts3) {
+      return res.status(503).json({ error: "TeamSpeak is not connected." });
+    }
+
+    const now = Date.now();
+    if (
+      lastPollStats &&
+      now - lastManualPollAt < MANUAL_POLL_COOLDOWN_MS
+    ) {
+      return res.json({ ok: true, polled: false, last_poll: lastPollStats });
+    }
+
+    const result = await triggerPoll();
+    if (!result || !result.ok) {
+      return res.status(503).json({
+        error: result && result.error ? result.error : "TeamSpeak refresh failed.",
+      });
+    }
+    lastManualPollAt = now;
+    res.json({ ok: true, polled: true, last_poll: lastPollStats });
+  }),
+);
+
 app.get(
   "/api/admin/status",
   asyncRoute(async (req, res) => {
@@ -420,14 +453,17 @@ async function blacklistUserHandler(req, res) {
 
 async function editUserHoursHandler(req, res) {
   const uid = String(req.params.uid || "");
-  if (!uid || req.body.uid !== uid || !req.body.hours) {
-    return res.status(400).json({ error: "User and tracked hours are required." });
+  if (!uid || req.body.uid !== uid) {
+    return res.status(400).json({ error: "User confirmation did not match." });
   }
 
   let user;
   try {
     user = await runTrackingMaintenance(() =>
-      setUserTrackedHours(uid, req.body.hours),
+      setUserTrackedHours(uid, {
+        hours: req.body.hours,
+        minutes: req.body.minutes,
+      }),
     );
   } catch (error) {
     if (error instanceof RangeError) {
@@ -694,6 +730,10 @@ const localDashboardOrigins = new Set(
   ),
 );
 
+localAdminApp.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 localAdminApp.use((req, res, next) => {
   const origin = req.get("origin");
   if (origin && !localDashboardOrigins.has(origin)) {
@@ -888,7 +928,9 @@ async function connectTS3() {
 // Polling loop — snapshot all online clients every POLL_MS milliseconds
 // ---------------------------------------------------------------------------
 async function pollOnce() {
-  if (!isConnected || !ts3) return;
+  if (!isConnected || !ts3) {
+    return { ok: false, error: "TeamSpeak is not connected." };
+  }
 
   try {
     const clients = await ts3.clientList({ clientType: 0 });
@@ -922,8 +964,10 @@ async function pollOnce() {
           `tracking ${processedClients}.`,
       );
     }
+    return { ok: true, lastPoll: lastPollStats };
   } catch (err) {
     console.error("[Tracker] Poll error:", err.message);
+    return { ok: false, error: err.message };
   }
 }
 
