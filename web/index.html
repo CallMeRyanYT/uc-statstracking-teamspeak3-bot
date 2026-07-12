@@ -1517,7 +1517,11 @@
 
     const statusLine = `<div class="admin-status-line">${svgIcon('shield')} ${esc(adminState.username || 'Administrator')} verified via ${adminState.mode === 'local' ? 'this laptop' : 'TeamSpeak UID'}</div>`;
     const discord = adminState.discord || {};
+    const scheduleText = esc(
+      discord.schedule || `a ${discord.interval_minutes || 60}-minute clock schedule`,
+    );
     const sentText = discord.last_sent_at ? ` Last sent ${fmtDate(discord.last_sent_at)}.` : '';
+    const nextText = discord.next_scheduled_at ? ` Next scheduled ${fmtDate(discord.next_scheduled_at)}.` : '';
     const blacklistedUsers = adminState.blacklisted_users || [];
     const blacklistRows = blacklistedUsers.length
       ? blacklistedUsers.map(user => `
@@ -1533,7 +1537,7 @@
       ${statusLine}
       <div class="admin-section">
         <h3>Discord statistics</h3>
-        <p>${discord.configured ? `Automatic reports are enabled every ${discord.interval_minutes || 60} minutes.${sentText}` : 'No Discord webhook is configured yet. Run setup.ps1 to add one.'}</p>
+        <p>${discord.configured ? `Automatic reports use ${scheduleText}.${sentText}${nextText}` : 'No Discord webhook is configured yet. Run setup.ps1 to add one.'}</p>
         <div class="modal-actions">
           <button class="action-btn" id="send-discord-btn" onclick="sendDiscordNow()" ${discord.configured ? '' : 'disabled'}>${svgIcon('send')} Send now</button>
         </div>

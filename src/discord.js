@@ -2,6 +2,8 @@ const META_LAST_SENT = "discord_last_report_at";
 const META_LAST_MESSAGE_ID = "discord_last_report_message_id";
 const DEFAULT_INTERVAL_MINUTES = 60;
 const MIN_INTERVAL_MINUTES = 5;
+const MAX_INTERVAL_MINUTES = 24 * 60;
+const SCHEDULE_WINDOW_MS = 60_000;
 const WEBHOOK_TIMEOUT_MS = 10_000;
 
 const DISCORD_WEBHOOK_HOSTS = new Set([
@@ -63,9 +65,60 @@ function validatePublicDashboardUrl(rawUrl) {
 }
 
 function parseIntervalMinutes(value) {
-  const parsed = Number.parseInt(value, 10);
+  const parsed = Number(value);
   if (!Number.isInteger(parsed)) return DEFAULT_INTERVAL_MINUTES;
-  return Math.max(parsed, MIN_INTERVAL_MINUTES);
+  return Math.min(
+    Math.max(parsed, MIN_INTERVAL_MINUTES),
+    MAX_INTERVAL_MINUTES,
+  );
+}
+
+function getSchedulePeriod(now, intervalMinutes) {
+  const start = new Date(now);
+  if (intervalMinutes <= 60) {
+    start.setMinutes(0, 0, 0);
+    return { start, minutes: 60 };
+  }
+  start.setHours(0, 0, 0, 0);
+  return { start, minutes: 24 * 60 };
+}
+
+function getLatestScheduledReportAt(value, rawIntervalMinutes) {
+  const now = new Date(value);
+  if (!Number.isFinite(now.getTime())) {
+    throw new RangeError("Scheduled report time must be a valid date.");
+  }
+  const intervalMinutes = parseIntervalMinutes(rawIntervalMinutes);
+  const period = getSchedulePeriod(now, intervalMinutes);
+  const elapsedMinutes = (now.getTime() - period.start.getTime()) / 60_000;
+  const slotOffset = Math.floor(elapsedMinutes / intervalMinutes) * intervalMinutes;
+  return new Date(period.start.getTime() + slotOffset * 60_000);
+}
+
+function getNextScheduledReportAt(value, rawIntervalMinutes) {
+  const now = new Date(value);
+  const intervalMinutes = parseIntervalMinutes(rawIntervalMinutes);
+  const period = getSchedulePeriod(now, intervalMinutes);
+  const latest = getLatestScheduledReportAt(now, intervalMinutes);
+  const periodEnd = new Date(
+    period.start.getTime() + period.minutes * 60_000,
+  );
+  const next = new Date(latest.getTime() + intervalMinutes * 60_000);
+  return next < periodEnd ? next : periodEnd;
+}
+
+function formatReportSchedule(rawIntervalMinutes) {
+  const intervalMinutes = parseIntervalMinutes(rawIntervalMinutes);
+  if (intervalMinutes === 60) return "Hourly at :00";
+  if (intervalMinutes < 60) {
+    const slots = [];
+    for (let minute = 0; minute < 60; minute += intervalMinutes) {
+      slots.push(`:${String(minute).padStart(2, "0")}`);
+    }
+    return `Every ${intervalMinutes} min | ${slots.join(", ")}`;
+  }
+  if (intervalMinutes === 24 * 60) return "Daily at 00:00";
+  return `Every ${intervalMinutes} min | Daily anchor 00:00`;
 }
 
 function formatHours(value) {
@@ -122,15 +175,12 @@ function buildDiscordPayload(snapshot, options = {}) {
     ? snapshot.leaderboard
         .map(
           (user, index) => {
-            const states = [];
-            if (user.is_afk) states.push("AFK");
-            else if (user.is_online) states.push("online");
-            if (user.is_blacklisted) states.push("blacklisted");
-            const status = states.length ? ` (${states.join(", ")})` : "";
-            return (
-              `**${index + 1}.** ${escapeDiscordMarkdown(user.username, 48)} - ` +
-              `\`${formatHours(user.total_time)}\`${status}`
-            );
+            const states = [
+              user.is_afk ? "AFK" : user.is_online ? "Online" : "Offline",
+            ];
+            if (user.is_blacklisted) states.push("Blacklisted");
+            return `**${index + 1}. ${escapeDiscordMarkdown(user.username, 48)}** | ` +
+              `\`${formatHours(user.total_time)}\` | ${states.join(" / ")}`;
           },
         )
         .join("\n")
@@ -140,7 +190,7 @@ function buildDiscordPayload(snapshot, options = {}) {
     ? snapshot.channels
         .map(
           (channel) =>
-            `${escapeDiscordMarkdown(channel.channel_name, 48)} - ` +
+            `**${escapeDiscordMarkdown(channel.channel_name, 48)}** | ` +
             `\`${formatHours(channel.total_time)}\``,
         )
         .join("\n")
@@ -151,40 +201,47 @@ function buildDiscordPayload(snapshot, options = {}) {
     allowed_mentions: { parse: [] },
     embeds: [
       {
-        title: "Unknown Cyberia TeamSpeak Statistics",
+        author: { name: "Unknown Cyberia" },
+        title: "TeamSpeak Activity Report",
         url: dashboardUrl || undefined,
-        color: 0x9b7abb,
-        description: leaderboardText,
+        color: 0xa92cff,
+        description: "Live activity and tracked-time summary.",
         fields: [
-          { name: "Users", value: String(snapshot.totals.users || 0), inline: true },
-          { name: "Online", value: String(snapshot.totals.online || 0), inline: true },
+          {
+            name: "Users",
+            value:
+              `**${snapshot.totals.users || 0}** total\n` +
+              `**${snapshot.totals.online || 0}** online`,
+            inline: true,
+          },
           {
             name: "Tracked time",
-            value: formatHours(snapshot.totals.total_hours),
+            value: `**${formatHours(snapshot.totals.total_hours)}**`,
             inline: true,
           },
           {
             name: "Sessions",
-            value: String(snapshot.totals.total_sessions || 0),
+            value: `**${snapshot.totals.total_sessions || 0}**`,
             inline: true,
           },
+          { name: "Leaderboard", value: leaderboardText, inline: false },
           { name: "Top channels", value: channelText, inline: false },
           ...(dashboardUrl
             ? [
                 {
-                  name: "Website",
-                  value: `<${dashboardUrl}>`,
+                  name: "Dashboard",
+                  value: `[Open live statistics](${dashboardUrl.replace(/\)/g, "%29")})`,
                   inline: false,
                 },
               ]
             : []),
         ],
         footer: {
-          text:
-            `Automatic report | Every ${options.intervalMinutes || DEFAULT_INTERVAL_MINUTES} minutes` +
-            (dashboardUrl ? ` | ${dashboardUrl}` : ""),
+          text: `Automatic report | ${formatReportSchedule(
+            options.intervalMinutes || DEFAULT_INTERVAL_MINUTES,
+          )}`,
         },
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(options.timestamp || Date.now()).toISOString(),
       },
     ],
   };
@@ -195,12 +252,19 @@ function createDiscordReporter(options) {
   const fetchImpl = options.fetchImpl || global.fetch;
   const intervalMinutes = parseIntervalMinutes(options.intervalMinutes);
   const logger = options.logger || console;
+  const nowProvider =
+    typeof options.now === "function" ? options.now : () => Date.now();
   let webhookUrl = null;
   let dashboardUrl = null;
   let configError = null;
   let lastError = null;
-  let lastAttemptAt = 0;
+  let lastScheduledAttemptAt = 0;
   let inFlight = null;
+
+  function getNow() {
+    const now = new Date(nowProvider());
+    return Number.isFinite(now.getTime()) ? now : new Date();
+  }
 
   try {
     webhookUrl = validateDiscordWebhookUrl(options.webhookUrl);
@@ -285,12 +349,13 @@ function createDiscordReporter(options) {
     if (typeof fetchImpl !== "function") {
       throw new Error("This Node.js version does not provide fetch().");
     }
-    lastAttemptAt = Date.now();
+    const attemptedAt = getNow();
 
     const snapshot = await readStatsSnapshot(db);
     const payload = buildDiscordPayload(snapshot, {
       intervalMinutes,
       dashboardUrl,
+      timestamp: attemptedAt,
     });
     const endpoint = new URL(webhookUrl);
     endpoint.searchParams.set("wait", "true");
@@ -336,7 +401,7 @@ function createDiscordReporter(options) {
         );
       }
 
-      const sentAt = new Date().toISOString();
+      const sentAt = getNow().toISOString();
       await setLastSentAt(sentAt);
       lastError = null;
       logger.log(`[Discord] Statistics report sent (${snapshot.leaderboard.length} ranked users).`);
@@ -363,20 +428,32 @@ function createDiscordReporter(options) {
 
   async function maybeSend() {
     if (!webhookUrl || configError || inFlight) return { sent: false };
+    const now = getNow();
+    const nowMs = now.getTime();
+    const scheduledAt = getLatestScheduledReportAt(now, intervalMinutes);
+    const slotAgeMs = nowMs - scheduledAt.getTime();
+    if (slotAgeMs < 0 || slotAgeMs >= SCHEDULE_WINDOW_MS) {
+      return { sent: false };
+    }
+
     const retryDelayMs = Math.min(intervalMinutes, 5) * 60_000;
-    if (lastAttemptAt && Date.now() - lastAttemptAt < retryDelayMs) {
+    if (
+      lastScheduledAttemptAt &&
+      nowMs - lastScheduledAttemptAt < retryDelayMs
+    ) {
       return { sent: false };
     }
     const lastSentAt = await getLastSentAt();
     if (lastSentAt) {
-      const elapsed = Date.now() - new Date(lastSentAt).getTime();
-      if (Number.isFinite(elapsed) && elapsed < intervalMinutes * 60_000) {
+      const sentTime = new Date(lastSentAt).getTime();
+      if (Number.isFinite(sentTime) && sentTime >= scheduledAt.getTime()) {
         return { sent: false };
       }
     }
 
     const totals = await db.getAsync("SELECT COUNT(*) AS users FROM users");
     if (!totals || !totals.users) return { sent: false };
+    lastScheduledAttemptAt = nowMs;
     return sendNow();
   }
 
@@ -387,6 +464,11 @@ function createDiscordReporter(options) {
       last_sent_at: await getLastSentAt(),
       last_error: lastError || (configError ? configError.message : null),
       dashboard_url: dashboardUrl,
+      schedule: formatReportSchedule(intervalMinutes),
+      next_scheduled_at: getNextScheduledReportAt(
+        getNow(),
+        intervalMinutes,
+      ).toISOString(),
     };
   }
 
@@ -403,6 +485,9 @@ module.exports = {
   buildDiscordPayload,
   createDiscordReporter,
   escapeDiscordMarkdown,
+  formatReportSchedule,
+  getLatestScheduledReportAt,
+  getNextScheduledReportAt,
   parseIntervalMinutes,
   validatePublicDashboardUrl,
   validateDiscordWebhookUrl,

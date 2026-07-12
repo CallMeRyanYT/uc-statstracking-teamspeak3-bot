@@ -991,7 +991,7 @@ console.log(`   Web Dashboard : http://localhost:${WEB_PORT}`);
 console.log(`   Public URL    : ${PUBLIC_DASHBOARD_URL}`);
 console.log(`   Local Admin   : http://127.0.0.1:${HOST_ADMIN_PORT}`);
 console.log(
-  `   Discord      : ${discordReporter.configured ? `every ${discordReporter.intervalMinutes}m` : "not configured"}`,
+  `   Discord      : ${discordReporter.configured ? `clock-aligned every ${discordReporter.intervalMinutes}m` : "not configured"}`,
 );
 console.log("===================================================");
 
@@ -1010,8 +1010,8 @@ async function boot() {
     console.error("[Tracker] Ignored-user cleanup failed:", err.message);
   });
   connectTS3();
-  setTimeout(checkScheduledDiscordReport, 15_000);
-  setInterval(checkScheduledDiscordReport, 60_000);
+  setTimeout(checkScheduledDiscordReport, 1_000);
+  setInterval(checkScheduledDiscordReport, 15_000);
 }
 
 boot();

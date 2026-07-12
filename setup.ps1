@@ -113,6 +113,37 @@ function Read-Val {
     return $v.Trim()
 }
 
+function Format-ReportSchedulePreview {
+    param([int]$IntervalMinutes)
+    if ($IntervalMinutes -eq 60) {
+        return "Hourly at :00"
+    }
+    if ($IntervalMinutes -lt 60) {
+        $slots = [System.Collections.Generic.List[string]]::new()
+        for ($minute = 0; $minute -lt 60; $minute += $IntervalMinutes) {
+            $slots.Add(":{0:D2}" -f $minute)
+        }
+        return "Every $IntervalMinutes minutes at " + ($slots -join ", ")
+    }
+    if ($IntervalMinutes -eq 1440) {
+        return "Daily at 00:00"
+    }
+    return "Every $IntervalMinutes minutes, aligned from 00:00 each day"
+}
+
+function Read-ReportInterval {
+    param([string]$Current)
+    while ($true) {
+        $value = Read-Val "Automatic report interval in minutes" $Current
+        $parsed = 0
+        if ([int]::TryParse($value, [ref]$parsed) -and
+            $parsed -ge 5 -and $parsed -le 1440) {
+            return [string]$parsed
+        }
+        Write-Host "  Enter a whole number from 5 to 1440." -ForegroundColor Yellow
+    }
+}
+
 function Read-Secret {
     param([string]$Prompt, [string]$Current)
     if ([string]::IsNullOrWhiteSpace($Current)) {
@@ -242,8 +273,11 @@ if ($runWizard) {
     Write-Host "--- Discord Statistics ---" -ForegroundColor Cyan
     Write-Host "  Create a webhook in Discord channel settings and copy its URL." -ForegroundColor Gray
     Write-Host "  The URL is a secret and is stored only in your local .env file." -ForegroundColor Gray
+    Write-Host "  Automatic reports align to clock slots instead of the bot start time." -ForegroundColor Gray
+    Write-Host "  Slots use the timezone configured in Tracking Settings below." -ForegroundColor Gray
     $discordWebhook = Read-DiscordWebhook (Get-EnvVal $lines "DISCORD_WEBHOOK_URL" "")
-    $discordInterval = Read-Val "Automatic report interval in minutes" (Get-EnvVal $lines "DISCORD_REPORT_INTERVAL_MINUTES" "60")
+    $discordInterval = Read-ReportInterval (Get-EnvVal $lines "DISCORD_REPORT_INTERVAL_MINUTES" "60")
+    Write-Host "  Schedule: $(Format-ReportSchedulePreview ([int]$discordInterval))" -ForegroundColor Green
 
     Write-Host ""
     Write-Host "--- Public Website ---" -ForegroundColor Cyan

@@ -64,7 +64,7 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 2. Open **Edit Channel > Integrations > Webhooks**.
 3. Create a webhook and copy its URL.
 4. Run `.\setup.ps1` again, choose to update configuration, copy the URL, and press Enter at the webhook prompt. The wizard reads it from your clipboard without displaying it.
-5. Choose the automatic report interval. The default is 60 minutes and the minimum is 5 minutes.
+5. Choose the automatic report interval from 5 to 1440 minutes. Reports use wall-clock slots: `60` sends at `XX:00`, `15` sends at `XX:00`, `XX:15`, `XX:30`, and `XX:45`, while `13` uses `XX:00`, `XX:13`, `XX:26`, `XX:39`, and `XX:52` before resetting on the next hour.
 6. Enter `https://uct.aquaweb.cc/` at the public website prompt. This link is added to each report.
 7. Rebuild and start:
 
@@ -72,7 +72,9 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
    docker compose up -d --build --remove-orphans
    ```
 
-The first automatic report is sent when tracked data exists and a report is due. Each successful report stores its Discord message ID; the next successful report is posted first and then deletes the previous one. From the local dashboard, open **Manage** and use **Send now** to test it immediately.
+The first automatic report waits for the next clock-aligned slot and requires tracked data. Each successful report stores its Discord message ID; the next successful report is posted first and then deletes the previous one. From the local dashboard, open **Manage** and use **Send now** to test it immediately without changing the automatic schedule.
+
+Clock slots use the `TZ` timezone configured by `setup.ps1`. The Manage panel shows the next scheduled report in the browser's local time.
 
 Treat the webhook URL like a password. If it is ever pasted into a public chat, delete or rotate it in Discord and update `.env`.
 
@@ -168,7 +170,7 @@ The manual **Refresh** button requests an immediate rate-limited TeamSpeak poll 
 | `BOT_NICKNAMES` | `UC Stats Bot,serveradmin,UC Music Bot,Admonus` | Nicknames to never track |
 | `POLL_INTERVAL_MS` | `60000` | Poll frequency |
 | `DISCORD_WEBHOOK_URL` | | Discord channel webhook; blank disables reports |
-| `DISCORD_REPORT_INTERVAL_MINUTES` | `60` | Automatic statistics report frequency |
+| `DISCORD_REPORT_INTERVAL_MINUTES` | `60` | Clock-aligned automatic report frequency, from 5 to 1440 minutes |
 | `PUBLIC_DASHBOARD_URL` | `https://uct.aquaweb.cc/` | Website included in dashboard and Discord links |
 | `WEB_PORT` | `3000` | App port inside Docker |
 | `HOST_WEB_PORT` | `3000` | Dashboard port on Windows |

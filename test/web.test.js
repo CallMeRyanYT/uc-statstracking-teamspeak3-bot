@@ -45,6 +45,8 @@ test("dashboard includes blacklist controls and the refresh easter egg", () => {
   assert.doesNotMatch(html, /id="edit-daily-hours"/);
   assert.doesNotMatch(html, /otto-multiplier|Otto multiplier/);
   assert.match(html, /permissions\?\.manage_users/);
+  assert.match(html, /discord\.next_scheduled_at/);
+  assert.match(html, /discord\.schedule/);
   assert.match(html, /setInterval\(updateRefreshInfo, 1_000\)/);
   assert.match(html, /second: '2-digit'/);
   assert.doesNotMatch(html, /HONOR_CLOSE_DELAY_SECONDS|honor-overlay/);
