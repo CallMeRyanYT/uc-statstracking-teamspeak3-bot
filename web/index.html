@@ -1357,10 +1357,9 @@
     username: null,
     role: null,
     apiBase: '',
-    permissions: { manage_users: false, manage_multiplier: false },
+    permissions: { manage_users: false },
     discord: { configured: false },
     blacklisted_users: [],
-    otto_multiplier: null,
   };
   const timeKeys = { total: 'total_time', daily: 'daily_time', weekly: 'weekly_time', monthly: 'monthly_time' };
 
@@ -1417,28 +1416,15 @@
     return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   }
 
-  function isAlexModeActive() {
-    return document.body.classList.contains('alex-mode');
-  }
-
   function canManageUsers() {
     return Boolean(adminState.authorized && adminState.permissions?.manage_users);
-  }
-
-  function canManageMultiplier() {
-    return Boolean(adminState.authorized && adminState.permissions?.manage_multiplier);
   }
 
   function updateAdminButton() {
     const button = document.getElementById('admin-btn');
     if (!button) return;
-    const restrictedOtto = adminState.authorized && adminState.role === 'otto';
-    button.hidden = restrictedOtto && !isAlexModeActive();
-    const label = !adminState.authorized
-      ? 'Admin access'
-      : restrictedOtto
-        ? 'Otto multiplier'
-        : 'Manage';
+    button.hidden = false;
+    const label = adminState.authorized ? 'Manage' : 'Admin access';
     button.innerHTML = `${svgIcon('shield')} ${label}`;
   }
 
@@ -1496,10 +1482,6 @@
   }
 
   function openAdminModal() {
-    if (adminState.authorized && adminState.role === 'otto' && !isAlexModeActive()) {
-      showToast('Activate Alex mode to reveal Otto multiplier controls.');
-      return;
-    }
     document.getElementById('admin-modal-overlay').classList.add('open');
     renderAdminModal();
   }
@@ -1509,27 +1491,9 @@
     document.getElementById('admin-modal-overlay').classList.remove('open');
   }
 
-  function renderOttoMultiplierSection() {
-    const multiplier = Number(adminState.otto_multiplier);
-    const value = Number.isFinite(multiplier) ? multiplier : 2;
-    return `
-      <div class="admin-section">
-        <h3>Otto hours multiplier</h3>
-        <p>New active and AFK tracking for Otto's permanent UID is credited at this rate. Current-session presence stays real-time, and changing this value does not rewrite earlier history.</p>
-        <label class="admin-field multiplier-control">
-          <span>Multiplier</span>
-          <div class="input-with-unit"><span>x</span><input class="admin-number-input" id="otto-multiplier-input" type="number" min="0.1" max="100" step="0.1" inputmode="decimal" value="${value}" /></div>
-        </label>
-        <div class="modal-actions">
-          <button class="action-btn" id="save-otto-multiplier-btn" onclick="saveOttoMultiplier()"><svg class="svg-icon" aria-hidden="true"><use href="#icon-save"></use></svg> Save multiplier</button>
-        </div>
-      </div>`;
-  }
-
   function renderAdminModal() {
     const body = document.getElementById('admin-modal-body');
-    document.getElementById('admin-modal-title').textContent =
-      adminState.role === 'otto' ? 'Otto Controls' : 'Leaderboard Controls';
+    document.getElementById('admin-modal-title').textContent = 'Leaderboard Controls';
     if (!adminState.authorized) {
       const challenge = pendingAdminChallenge
         ? `<div class="challenge-code">${esc(pendingAdminChallenge.code)}</div>
@@ -1545,21 +1509,13 @@
       body.innerHTML = `
         <div class="admin-section">
           <h3>TeamSpeak identity verification</h3>
-          <p>Full editing requires an allowed Server Admin group. Otto's exact permanent UID can instead unlock only his multiplier control.</p>
+          <p>Full editing requires an allowed Server Admin group.</p>
           ${challenge}
         </div>`;
       return;
     }
 
     const statusLine = `<div class="admin-status-line">${svgIcon('shield')} ${esc(adminState.username || 'Administrator')} verified via ${adminState.mode === 'local' ? 'this laptop' : 'TeamSpeak UID'}</div>`;
-    if (adminState.role === 'otto') {
-      body.innerHTML = isAlexModeActive()
-        ? `${statusLine}${renderOttoMultiplierSection()}
-           <div class="modal-actions"><button class="action-btn" onclick="logoutAdmin()">Sign out</button></div>`
-        : statusLine;
-      return;
-    }
-
     const discord = adminState.discord || {};
     const sentText = discord.last_sent_at ? ` Last sent ${fmtDate(discord.last_sent_at)}.` : '';
     const blacklistedUsers = adminState.blacklisted_users || [];
@@ -1575,7 +1531,6 @@
       : `<div class="blacklist-row"><div class="blacklist-meta">No blacklisted users</div></div>`;
     body.innerHTML = `
       ${statusLine}
-      ${renderOttoMultiplierSection()}
       <div class="admin-section">
         <h3>Discord statistics</h3>
         <p>${discord.configured ? `Automatic reports are enabled every ${discord.interval_minutes || 60} minutes.${sentText}` : 'No Discord webhook is configured yet. Run setup.ps1 to add one.'}</p>
@@ -1629,38 +1584,8 @@
       pendingAdminChallenge = null;
       adminState.apiBase = '';
       await refreshAdminState();
-      if (adminState.role === 'otto' && !isAlexModeActive()) {
-        closeAdminModal();
-        showToast('Otto access unlocked. Activate Alex mode to reveal it.');
-      } else {
-        renderAdminModal();
-        showToast(adminState.role === 'otto' ? 'Otto multiplier unlocked.' : 'Server Admin access unlocked.');
-      }
-    } catch (error) {
-      showToast(error.message, true);
-      if (button) button.disabled = false;
-    }
-  }
-
-  async function saveOttoMultiplier() {
-    if (!canManageMultiplier()) return;
-    const input = document.getElementById('otto-multiplier-input');
-    const multiplier = Number(input?.value);
-    if (!Number.isFinite(multiplier) || multiplier < 0.1 || multiplier > 100) {
-      showToast('Multiplier must be between 0.1 and 100.', true);
-      return;
-    }
-
-    const button = document.getElementById('save-otto-multiplier-btn');
-    if (button) button.disabled = true;
-    try {
-      await adminFetch('/api/admin/otto-multiplier', {
-        method: 'PATCH',
-        body: JSON.stringify({ multiplier }),
-      });
-      await refreshAdminState();
       renderAdminModal();
-      showToast(`Otto's multiplier is now ${adminState.otto_multiplier}x.`);
+      showToast('Server Admin access unlocked.');
     } catch (error) {
       showToast(error.message, true);
       if (button) button.disabled = false;
@@ -1713,10 +1638,9 @@
         mode: null,
         username: null,
         role: null,
-        permissions: { manage_users: false, manage_multiplier: false },
+        permissions: { manage_users: false },
         discord: { configured: false },
         blacklisted_users: [],
-        otto_multiplier: null,
       };
       renderAdminModal();
       updateAdminButton();

@@ -43,9 +43,7 @@ test("dashboard includes blacklist controls and the refresh easter egg", () => {
   assert.match(html, /id="edit-hours"/);
   assert.match(html, /id="edit-minutes"/);
   assert.doesNotMatch(html, /id="edit-daily-hours"/);
-  assert.match(html, /id="otto-multiplier-input"/);
-  assert.match(html, /adminState\.role === 'otto'/);
-  assert.match(html, /!isAlexModeActive\(\)/);
+  assert.doesNotMatch(html, /otto-multiplier|Otto multiplier/);
   assert.match(html, /permissions\?\.manage_users/);
   assert.match(html, /setInterval\(updateRefreshInfo, 1_000\)/);
   assert.match(html, /second: '2-digit'/);

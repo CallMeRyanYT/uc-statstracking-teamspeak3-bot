@@ -31,10 +31,7 @@ const {
   resetUserTrackingData,
   resetAllTrackingData,
   setUserBlacklisted,
-  getOttoMultiplier,
-  setOttoMultiplier,
   setUserTrackedHours,
-  OTTO_UID,
 } = require("./tracker");
 
 // ---------------------------------------------------------------------------
@@ -128,7 +125,6 @@ const MANUAL_POLL_COOLDOWN_MS = 3_000;
 
 const adminAuth = new TeamSpeakAdminAuth({
   adminGroupIds: process.env.TS3_ADMIN_GROUP_IDS || "6",
-  restrictedUsers: { [OTTO_UID]: "otto" },
 });
 const discordReporter = createDiscordReporter({
   db,
@@ -254,7 +250,6 @@ function getRemoteAdminSession(req) {
 function permissionsForRole(role) {
   return {
     manage_users: role === "admin",
-    manage_multiplier: role === "admin" || role === "otto",
   };
 }
 
@@ -271,21 +266,6 @@ function requireRemoteAdmin(req, res, next) {
   next();
 }
 
-function requireRemoteMultiplierAccess(req, res, next) {
-  const session = getRemoteAdminSession(req);
-  if (!session) {
-    return res.status(401).json({ error: "TeamSpeak identity verification required" });
-  }
-  if (!permissionsForRole(session.role).manage_multiplier) {
-    return res.status(403).json({ error: "Multiplier access required" });
-  }
-  res.locals.adminActor =
-    session.role === "otto"
-      ? `Otto ${session.username} (${session.uid})`
-      : `TeamSpeak admin ${session.username} (${session.uid})`;
-  res.locals.adminSession = session;
-  next();
-}
 
 async function listBlacklistedUsers() {
   const users = await db.allAsync(
@@ -338,15 +318,14 @@ app.get(
   asyncRoute(async (req, res) => {
     const session = getRemoteAdminSession(req);
     const fullAdmin = session && session.role === "admin";
-    const [discord, blacklistedUsers, ottoMultiplier] = session
+    const [discord, blacklistedUsers] = session
       ? await Promise.all([
           fullAdmin
             ? discordReporter.getStatus()
             : { configured: discordReporter.configured },
           fullAdmin ? listBlacklistedUsers() : [],
-          getOttoMultiplier(),
         ])
-      : [{ configured: discordReporter.configured }, [], null];
+      : [{ configured: discordReporter.configured }, []];
     res.json({
       authorized: Boolean(session),
       mode: session ? "teamspeak" : null,
@@ -356,7 +335,6 @@ app.get(
       ts3_connected: isConnected,
       discord,
       blacklisted_users: blacklistedUsers,
-      otto_multiplier: ottoMultiplier,
     });
   }),
 );
@@ -479,22 +457,6 @@ async function editUserHoursHandler(req, res) {
   res.json({ ok: true, user });
 }
 
-async function setOttoMultiplierHandler(req, res) {
-  let multiplier;
-  try {
-    multiplier = await setOttoMultiplier(req.body.multiplier);
-  } catch (error) {
-    if (error instanceof RangeError) {
-      return res.status(400).json({ error: error.message });
-    }
-    throw error;
-  }
-
-  console.log(
-    `[Admin] ${res.locals.adminActor || "Local host"} set Otto's multiplier to ${multiplier}x.`,
-  );
-  res.json({ ok: true, multiplier });
-}
 
 async function sendDiscordHandler(_req, res) {
   if (!discordReporter.configured) {
@@ -524,12 +486,6 @@ app.patch(
   requireSameOriginJson,
   requireRemoteAdmin,
   asyncRoute(editUserHoursHandler),
-);
-app.patch(
-  "/api/admin/otto-multiplier",
-  requireSameOriginJson,
-  requireRemoteMultiplierAccess,
-  asyncRoute(setOttoMultiplierHandler),
 );
 app.delete(
   "/api/admin/data",
@@ -766,10 +722,9 @@ function requireLocalJson(req, res, next) {
 localAdminApp.get(
   "/api/admin/status",
   asyncRoute(async (_req, res) => {
-    const [discord, blacklistedUsers, ottoMultiplier] = await Promise.all([
+    const [discord, blacklistedUsers] = await Promise.all([
       discordReporter.getStatus(),
       listBlacklistedUsers(),
-      getOttoMultiplier(),
     ]);
     res.json({
       authorized: true,
@@ -780,7 +735,6 @@ localAdminApp.get(
       ts3_connected: isConnected,
       discord,
       blacklisted_users: blacklistedUsers,
-      otto_multiplier: ottoMultiplier,
     });
   }),
 );
@@ -798,11 +752,6 @@ localAdminApp.patch(
   "/api/admin/users/:uid/hours",
   requireLocalJson,
   asyncRoute(editUserHoursHandler),
-);
-localAdminApp.patch(
-  "/api/admin/otto-multiplier",
-  requireLocalJson,
-  asyncRoute(setOttoMultiplierHandler),
 );
 localAdminApp.delete(
   "/api/admin/data",
