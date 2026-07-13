@@ -172,33 +172,6 @@ test("blacklisted clients keep presence without gaining tracked data", async () 
   assert.equal(activeSession.sessionDbId, null);
 });
 
-test("keeps the protected UID multiplier in time and heatmap units", async () => {
-  scenario = "otto";
-  const writeStart = writes.length;
-  await processClientTick(
-    {
-      type: 0,
-      uniqueIdentifier: "Z9wyOb/tgzg6wd6TMA9fs36txK0=",
-      nickname: "SpiceHater67",
-      channelId: "7",
-      away: 0,
-    },
-    { 7: "General" },
-  );
-  const ottoWrites = writes.slice(writeStart);
-  const timeWrite = ottoWrites.find(({ sql }) =>
-    sql.includes("total_time   = total_time   + ?"),
-  );
-  const heatmapWrite = ottoWrites.find(({ sql }) =>
-    sql.includes("INSERT INTO hourly_activity"),
-  );
-
-  assert.ok(timeWrite);
-  assert.ok(heatmapWrite);
-  assert.ok(timeWrite.params[0] > 0.11 && timeWrite.params[0] < 0.113);
-  assert.ok(heatmapWrite.params[3] > 6.6 && heatmapWrite.params[3] < 6.8);
-});
-
 test("sets every leaderboard period from whole hours and minutes", async () => {
   scenario = "edit_hours";
   const writeStart = writes.length;

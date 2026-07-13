@@ -406,9 +406,8 @@ async function processClientTick(client, channelMap) {
     visitedChannel = true;
   }
 
-  const tickMult = uid === "Z9wyOb/tgzg6wd6TMA9fs36txK0=" ? 6.7 : 1;
-  const creditedTickTime = (elapsedMs / 3_600_000) * tickMult;
-  const creditedTickUnits = (elapsedMs / POLL_INTERVAL_MS) * tickMult;
+  const creditedTickTime = elapsedMs / 3_600_000;
+  const creditedTickUnits = elapsedMs / POLL_INTERVAL_MS;
 
   if (earnTime) {
     // Accumulate time in all period buckets
