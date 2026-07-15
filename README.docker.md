@@ -1,6 +1,6 @@
 # Docker Setup Guide - UC Stats Bot
 
-This guide walks you through installing Docker Desktop on Windows and running the TeamSpeak 3 stats tracker, dashboard, local admin controls, and optional Discord reports at `https://uct.aquaweb.cc/`.
+This guide walks you through running the TeamSpeak 3 stats tracker, dashboard, local admin controls, and optional Discord reports at `https://uct.aquaweb.cc/` on Windows or Debian 13.
 
 ## Part 1 - Install Docker Desktop
 
@@ -48,6 +48,20 @@ docker info
    ```
 
 The wizard checks Docker, asks for TS3 ServerQuery settings, writes `.env`, and builds the Docker image.
+
+### Debian 13
+
+1. Open a terminal in the bot folder.
+2. Make the Bash wizard executable and run it:
+
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+
+3. If Docker is missing, confirm the prompt to install Docker Engine and the Compose plugin from Docker's Debian repository. If Docker is already installed but your user is not in the `docker` group, the wizard uses `sudo` for this run and prints the command needed for permanent non-root access.
+
+The Debian wizard writes the same `.env` settings and builds the same Docker image as the PowerShell wizard.
 
 ## Part 3 - Start The Bot
 

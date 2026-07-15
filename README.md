@@ -20,7 +20,7 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 
 ## Quick Start
 
-1. Run the Windows setup wizard:
+1. On Windows, run the PowerShell setup wizard:
 
    ```powershell
    Set-ExecutionPolicy -Scope Process Bypass
@@ -29,7 +29,16 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 
    It asks for ServerQuery details, the optional Discord webhook, Server Admin group IDs, tracking settings, and dashboard ports. Secrets are written only to the ignored `.env` file.
 
-2. If you prefer manual setup, copy `.env.example` to `.env` and edit it.
+2. On Debian 13, make the Bash wizard executable and run it:
+
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+
+   If Docker Engine is missing, the wizard can install Docker Engine and the Compose plugin from Docker's Debian repository. It then asks the same configuration questions as the Windows wizard and builds the image.
+
+3. If you prefer manual setup, copy `.env.example` to `.env` and edit it.
 
    If Docker runs on the same PC as your TS3 server:
 
@@ -47,14 +56,14 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
    PUBLIC_DASHBOARD_URL=https://uct.aquaweb.cc/
    ```
 
-3. Start it:
+4. Start it:
 
    ```powershell
    docker compose up -d --build --remove-orphans
    docker logs -f uc-stats-bot
    ```
 
-4. Open the dashboard:
+5. Open the dashboard:
 
    http://localhost:3000
 
@@ -63,7 +72,7 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 1. In Discord, open the destination channel.
 2. Open **Edit Channel > Integrations > Webhooks**.
 3. Create a webhook and copy its URL.
-4. Run `.\setup.ps1` again, choose to update configuration, copy the URL, and press Enter at the webhook prompt. The wizard reads it from your clipboard without displaying it.
+4. Run the setup wizard again (`.\setup.ps1` on Windows or `./setup.sh` on Debian), choose to update configuration, and paste the URL at the webhook prompt. The URL is saved only in `.env`.
 5. Choose the automatic report interval from 5 to 1440 minutes. Reports use wall-clock slots: `60` sends at `XX:00`, `15` sends at `XX:00`, `XX:15`, `XX:30`, and `XX:45`, while `13` uses `XX:00`, `XX:13`, `XX:26`, `XX:39`, and `XX:52` before resetting on the next hour.
 6. Enter `https://uct.aquaweb.cc/` at the public website prompt. This link is added to each report.
 7. Rebuild and start:
@@ -74,7 +83,7 @@ The bot uses TeamSpeak ServerQuery to poll who is online, which channel they are
 
 The first automatic report waits for the next clock-aligned slot and requires tracked data. Each successful report stores its Discord message ID; the next successful report is posted first and then deletes the previous one. From the local dashboard, open **Manage** and use **Send now** to test it immediately without changing the automatic schedule.
 
-Clock slots use the `TZ` timezone configured by `setup.ps1`. The Manage panel shows the next scheduled report in the browser's local time.
+Clock slots use the `TZ` timezone configured by the setup wizard. The Manage panel shows the next scheduled report in the browser's local time.
 
 Treat the webhook URL like a password. If it is ever pasted into a public chat, delete or rotate it in Discord and update `.env`.
 
@@ -86,7 +95,7 @@ The project no longer starts or manages a tunnel container. The public dashboard
 https://uct.aquaweb.cc/
 ```
 
-Set it through `setup.ps1` or `.env`:
+Set it through either setup wizard or `.env`:
 
 ```env
 PUBLIC_DASHBOARD_URL=https://uct.aquaweb.cc/
@@ -96,7 +105,7 @@ This setting controls the website link shown in the dashboard and Discord report
 
 1. Configure the website host or reverse proxy for `uct.aquaweb.cc` to target the machine running this app on port `3000`.
 2. Keep admin port `3001` private. Docker binds it only to `127.0.0.1`.
-3. Run `./setup.ps1` and enter `https://uct.aquaweb.cc/` when asked for the public website.
+3. Run `.\setup.ps1` on Windows or `./setup.sh` on Debian, then enter `https://uct.aquaweb.cc/` when asked for the public website.
 4. Start the current stack and remove any old containers:
 
    ```powershell
@@ -257,7 +266,7 @@ Open **Manage** on the local dashboard and use **Send now**, then inspect:
 docker logs --tail 100 uc-stats-bot
 ```
 
-An HTTP `401` or `404` usually means the webhook was deleted or rotated. Run `.\setup.ps1`, enter the replacement URL, and rebuild.
+An HTTP `401` or `404` usually means the webhook was deleted or rotated. Run the appropriate setup wizard, enter the replacement URL, and rebuild.
 
 ### Server Admin Verification Fails
 
